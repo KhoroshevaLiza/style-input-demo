@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Цвет</title>
+  <link rel="stylesheet" href="color-window/source.css">
+  <link rel="stylesheet" href="color-window/embed.css">
+</head>
+<body>
+  <div id="color-anchor" aria-hidden="true"></div>
+  <div id="dialog" class="color-host">
+    <div hidden aria-hidden="true">
+      <button class="pin" type="button"><img src="assets/pin.svg" alt=""></button>
+      <div id="mine-block"><div id="mine"></div></div>
+    </div>
+    <section id="mine-menu" class="mine-menu" hidden aria-label="Мои цвета">
+      <div class="mine-menu-header"><span>Мои</span><button id="mine-close" type="button" aria-label="Закрыть Мои"><img src="assets/close.svg" alt=""></button></div>
+      <div id="mine-list"></div>
+    </section>
+  </div>
+  <div id="color-tooltip" class="color-tooltip" role="tooltip" hidden>
+    <span id="tooltip-value"></span>
+    <button id="tooltip-pin" type="button" aria-label="Добавить в Мои цвета"><img id="tooltip-pin-icon" src="assets/pin.svg" alt=""></button>
+  </div>
+  <script src="color-window/host.js"></script>
+  <script src="color-window/collections.js"></script>
+  <script src="color-window/dialog.js"></script>
+  <script src="color-window/eyedropper.js"></script>
+  <script src="color-window/format-menu.js"></script>
+  <script src="color-window/embed.js"></script>
+</body>
+</html>

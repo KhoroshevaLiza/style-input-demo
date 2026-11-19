@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Настройка оформления виджетов</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="color-dialog.js" defer></script>
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <main class="demo">
+    <section class="canvas" aria-label="Холст">
+      <div class="preview-widget">
+        <div class="toolbar" aria-hidden="true">
+          <span><img src="assets/toolbar-back.svg" width="8" height="13" alt=""></span>
+          <span><img src="assets/toolbar-style.svg" width="18" height="20" alt=""></span>
+          <span><img src="assets/toolbar-text.svg" width="14" height="17" alt=""></span>
+          <span><img src="assets/toolbar-size.svg" width="18" height="18" alt=""></span>
+          <span><img src="assets/toolbar-settings.svg" width="19" height="20" alt=""></span>
+          <span><img src="assets/toolbar-delete.svg" width="17" height="19" alt=""></span>
+          <span><img src="assets/toolbar-more.svg" width="18" height="5" alt=""></span>
+        </div>
+        <div class="widget-layout">
+          <div class="widget-frame">
+            <div class="widget-preview" id="widget-preview" aria-label="Предпросмотр текстового поля">
+              <div class="widget-content">
+                <span id="preview-label" hidden></span>
+                <span id="preview-text">Введите значение</span>
+              </div>
+            </div>
+          </div>
+          <div class="insert-positions" aria-hidden="true"><img src="assets/insert-positions.png" alt=""></div>
+        </div>
+      </div>
+    </section>
+    <section class="settings-stage" aria-label="Настройки виджета">
+      <h1>Виджет</h1>
+      <div class="settings">
+        <header class="window-header">
+          <h2 id="window-title">Текст</h2>
+          <h2 class="detail-heading" hidden><button class="detail-back" type="button" data-view="main"><span class="detail-back-icon" aria-hidden="true"></span><span class="detail-title"></span></button></h2>
+          <span class="header-size size-steps" hidden></span>
+          <div class="window-actions">
+            <button class="header-reset" type="button" data-reset-widget aria-label="Сбросить настройки виджета" disabled>&#xe629;</button>
+            <span aria-hidden="true"><img src="assets/save.svg" width="14" height="11" alt=""></span>
+            <img class="close-icon" src="assets/close.svg" alt="" aria-hidden="true">
+          </div>
+        </header>
+        <div class="window-content" id="settings-content"></div>
+      </div>
+    </section>
+  </main>
+</body>
+</html>
