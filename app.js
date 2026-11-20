@@ -7,6 +7,7 @@ const states = [
 ];
 const views = { main: "Текст", field: "Поле", label: "Метка", size: "Размер" };
 const defaultSize = { width: 316, height: 24 };
+const contentWidth = 207;
 const textStylePresets = {
   main: { title: "Основной текст", fontSize: 14, fontWeight: 400, italic: false },
   emphasized: { title: "Усиленный текст", fontSize: 16, fontWeight: 500, italic: false },
@@ -72,13 +73,16 @@ function createWidget(type) {
   return {
     type,
     name: "",
-    label: { text: "", gap: 8, ...typography("#8991a9") },
+    label: { text: "", placement: "left", gap: 8, ...typography("#8991a9") },
     placeholder: "",
     limitLength: "",
     limitPattern: "",
     preset: "transparent",
     size: {
       width: null, height: null, heightHint: defaultSize.height, horizontal: "default", vertical: "default",
+      outlineWidth: defaultSize.width,
+      dimensionModes: { width: "fill", height: "auto" },
+      heightOffset: 0,
       outer: { x: 0, y: 0, expanded: false, sides: [0, 0, 0, 0] },
       inner: { x: 0, y: 0, expanded: false, sides: [0, 0, 0, 0] },
       inset: { x: 0, y: 0, expanded: false, sides: [0, 0, 0, 0] },
@@ -210,7 +214,39 @@ function footerIcon([id, , width, height]) {
 }
 
 function availableFooterOptions() {
-  return footerOptions.filter(([id]) => !optionalTextFields[id] || !ui.added.has(id));
+  return footerOptions.filter(([id]) =>
+    (id !== "hint" || canShowHint()) && (!optionalTextFields[id] || !ui.added.has(id)));
+}
+
+function canShowHint() {
+  return widget.label.placement !== "small-above";
+}
+
+const labelPlacements = [
+  ["left", "Текстом слева", 9],
+  ["above", "Текстом сверху", 12],
+  ["small-above", "Малая метка сверху", 10],
+];
+
+function labelPlacementPicker() {
+  const selected = widget.label.placement;
+  const icon = (placement, height) =>
+    `<img src="assets/label-${placement}.svg" width="20" height="${height}" alt="">`;
+  const [, title, height] = labelPlacements.find(([placement]) => placement === selected);
+  return `<span class="label-placement">
+    <button class="metadata-text-icon" type="button" data-text-styles data-placement="${selected}"
+      aria-label="Расположение метки" title="${title}" aria-expanded="false"
+      aria-controls="label-placement-menu">${icon(selected, height)}</button>
+    <span class="text-style-menu label-placement-menu" id="label-placement-menu" role="group" aria-label="Расположение метки" hidden>
+      <span class="text-style-options">
+        ${labelPlacements.map(([placement, title, height]) => `<button class="add-menu-item label-placement-option" type="button"
+          data-label-placement="${placement}" aria-pressed="${placement === selected}">
+          <span class="menu-icon">${icon(placement, height)}</span><span>${title}</span>
+        </button>`).join("")}
+      </span>
+      <button class="text-style-close" type="button" data-close-text-styles aria-label="Закрыть меню расположения метки"><img src="assets/close.svg" width="12" height="12" alt=""></button>
+    </span>
+  </span>`;
 }
 
 function optionalTextRow(id) {
@@ -219,7 +255,7 @@ function optionalTextRow(id) {
     <span class="metadata-text-control${id === "label" ? " with-icon" : ""}"${id === "label" ? ` style="--label-text-color:${colorFill(widget.label.color, widget.label.colorAlpha ?? 100)}"` : ""}>
       ${textInput(path, label, title)}
       <span class="metadata-text-caption" aria-hidden="true">${caption}</span>
-      ${id === "label" ? `<span class="metadata-text-icon" aria-hidden="true">${footerIcon(footerOptions.find(([key]) => key === id))}</span>` : ""}
+      ${id === "label" ? labelPlacementPicker() : ""}
     </span>
     <button class="border-reset metadata-text-reset" type="button" data-remove-text="${id}" aria-label="${remove}"><img src="assets/border-reset.svg" width="9" height="9" alt=""></button>
   </div>`;
@@ -298,7 +334,7 @@ function mainView() {
       ${widget.name ? '<span class="name-caption">имя</span>' : ""}
       <span class="name-icon" aria-hidden="true">&#xea90;</span>
     </button>
-    ${ui.added.has("hint") ? optionalTextRow("hint") : ""}
+    ${canShowHint() && ui.added.has("hint") ? optionalTextRow("hint") : ""}
   </div>
   ${["required", "multiline", "length", "pattern"].some(id => ui.added.has(id)) ? `<div class="card added-options">
     ${ui.added.has("required") ? '<div class="row">Заполнять обязательно</div>' : ""}
@@ -441,17 +477,30 @@ function labelView() {
     <div class="card">${row("Отступ до поля", numberInput("label.gap", "Отступ до поля", 0, 60))}</div>`;
 }
 
-function dimensionModePicker(dimension, label, hint) {
+const dimensionModes = {
+  fixed: ["фиксированная", "px"],
+  relative: ["относительная", "%"],
+  auto: ["по контенту", "auto"],
+  fill: ["заполнить"],
+};
+
+function dimensionModePicker(dimension, label) {
   const menuId = `size-mode-${dimension}`;
-  const options = ["фиксированная (px)", "относительная (%)", "по контенту (auto)", "заполнить"];
-  const selected = hint === "по контенту" ? "по контенту (auto)" : hint;
+  const selected = widget.size.dimensionModes[dimension];
+  const [name, unit] = dimensionModes[selected];
+  const title = selected === "fixed" || selected === "relative" ? unit : name;
   const noun = dimension === "width" ? "ширину" : "высоту";
   return `<span class="dimension-mode">
     <button class="dimension-mode-trigger" type="button" data-text-styles aria-expanded="false"
-      aria-controls="${menuId}" aria-label="${label}: ${hint}">${hint}</button>
-    <span class="text-style-menu dimension-mode-menu" id="${menuId}" role="group" aria-label="${label}" hidden>
+      aria-controls="${menuId}" aria-label="${label}: ${title}">${title}</button>
+    <span class="text-style-menu dimension-mode-menu" id="${menuId}" data-dimension="${dimension}" role="group" aria-label="${label}" hidden>
       <span class="text-style-options">
-        ${options.map(option => `<span class="text-style-option${option === selected ? " selected" : ""}"${option === selected ? ' aria-current="true"' : ""}>${option}</span>`).join("")}
+        ${Object.entries(dimensionModes).map(([mode, [name, unit]]) => {
+          const caption = unit ? `${name} (${unit})` : name;
+          if (mode === "relative") return `<span class="text-style-option">${caption}</span>`;
+          return `<button class="text-style-option${mode === selected ? " selected" : ""}" type="button"
+            data-dimension-mode="${mode}" aria-pressed="${mode === selected}">${caption}</button>`;
+        }).join("")}
         <span class="dimension-mode-heading">Добавить</span>
         <span class="text-style-option">Min ${noun}</span>
         <span class="text-style-option">Max ${noun}</span>
@@ -465,14 +514,47 @@ function spacingSides({ x, y, sides: values, expanded }) {
   return expanded ? values : [y, x, y, x];
 }
 
-function dimensionHints() {
-  const [top, right, bottom, left] = spacingSides(widget.size.inner);
-  return { width: defaultSize.width + left + right, height: widget.size.heightHint + top + bottom };
+function heightExtras() {
+  const [top, , bottom] = spacingSides(widget.size.inner);
+  return top + bottom + labelRowHeight();
 }
 
-function dimensionControl(dimension, label, min, max, hint) {
+function dimensionHints() {
+  const { dimensionModes, heightHint, outlineWidth } = widget.size;
+  const style = widget.styles[ui.view === "field" ? ui.state : "rest"];
+  const fontSize = widget.label.text && widget.label.placement === "left"
+    ? Math.max(style.fontSize, widget.label.fontSize) : style.fontSize;
+  const [top, , bottom] = style.borderMode === "sides" ? style.borders : [style.borderWidth, 0, style.borderWidth];
+  const contentHeight = Math.ceil(fontSize * 1.2) + (style.borderColor ? top + bottom : 0);
+  return {
+    width: dimensionModes.width === "auto" ? contentWidth : outlineWidth,
+    height: (dimensionModes.height === "auto" ? Math.max(heightHint, contentHeight) : heightHint) + heightExtras(),
+  };
+}
+
+function previewDimensions() {
+  const { size } = widget;
+  const hints = dimensionHints();
+  if (size.width !== null) hints.width = size.width;
+  if (size.height !== null) hints.height = size.height + heightExtras() - size.heightOffset;
+  return hints;
+}
+
+function setDimensionMode(dimension, mode) {
+  widget.size.dimensionModes[dimension] = mode;
+  const picker = content.querySelector(`#size-mode-${dimension}`)?.parentElement;
+  if (picker) picker.outerHTML = dimensionModePicker(dimension, dimension === "width" ? "Режим ширины" : "Режим высоты");
+}
+
+function labelRowHeight() {
+  const { text, placement } = widget.label;
+  if (!text || placement === "left") return 0;
+  return placement === "above" ? 24 : 16;
+}
+
+function dimensionControl(dimension, label, min, max) {
   const placeholder = dimensionHints()[dimension];
-  return `<span class="dimension-control">${numberInput("size." + dimension, label, min, max, placeholder)}${dimensionModePicker(dimension, dimension === "width" ? "Режим ширины" : "Режим высоты", hint)}</span>`;
+  return `<span class="dimension-control">${numberInput("size." + dimension, label, min, max, placeholder)}${dimensionModePicker(dimension, dimension === "width" ? "Режим ширины" : "Режим высоты")}</span>`;
 }
 
 function spacingControl(path, label, max, vertical = false) {
@@ -520,8 +602,8 @@ function sizeView() {
     ${row("По горизонтали", positionPicker("horizontal", "Положение по горизонтали", "Слева", "Справа"))}
   </div>
   <div class="card size-dimensions">
-    ${row("Ширина", dimensionControl("width", "Ширина поля", 80, 700, "заполнить"))}
-    ${row("Высота", dimensionControl("height", "Высота поля", 24, 200, "по контенту"))}
+    ${row("Ширина", dimensionControl("width", "Ширина поля", 80, 700))}
+    ${row("Высота", dimensionControl("height", "Высота поля", 24, 200))}
   </div>
   <div class="card size-spacing">
     <strong class="size-card-heading">Отступы</strong>
@@ -560,20 +642,30 @@ function applyTypography(element, style) {
 }
 
 function updatePreview() {
-  resetWidgetButton.disabled = !ui.added.size && JSON.stringify(widget) === defaultWidget;
   const state = ui.view === "field" ? ui.state : "rest";
   const style = widget.styles[state];
   const { size, label } = widget;
   const [outerTop, outerRight, outerBottom, outerLeft] = spacingSides(size.outer);
-  const inner = spacingSides(size.inner);
-  const [innerTop, innerRight, innerBottom, innerLeft] = inner;
-  layout.style.width = (size.width ?? defaultSize.width) + innerLeft + innerRight + "px";
-  layout.style.maxWidth = `calc(100% - ${outerLeft + outerRight}px)`;
+  const [innerTop, innerRight, innerBottom, innerLeft] = spacingSides(size.inner);
+  const dimensions = previewDimensions();
+  const labelHeight = labelRowHeight();
+  const labelAbove = labelHeight > 0 && label.placement === "above";
+  layout.classList.toggle("with-label-above", labelAbove);
+  size.outlineWidth = Math.max(size.outlineWidth, dimensions.width);
+  layout.style.width = size.outlineWidth + "px";
+  previewFrame.style.width = `${dimensions.width - 2}px`;
+  resetWidgetButton.disabled = !ui.added.size && JSON.stringify(widget) === defaultWidget;
   const horizontal = size.horizontal === "default" ? "start" : size.horizontal;
-  layout.style.marginInline = { start: `${outerLeft}px auto`, center: "auto", end: `auto ${outerRight}px` }[horizontal];
-  layout.style.marginBlock = `${outerTop}px ${outerBottom}px`;
-  previewFrame.style.height = (size.height ?? size.heightHint) + innerTop + innerBottom + "px";
-  previewFrame.style.padding = inner.map(value => value + "px").join(" ");
+  previewFrame.style.maxWidth = `calc(100% - ${outerLeft + outerRight + 2}px)`;
+  previewFrame.style.marginInline = {
+    start: `${outerLeft + 1}px auto`,
+    center: "auto",
+    end: `auto ${outerRight + 1}px`,
+  }[horizontal];
+  previewFrame.style.marginBlock = `${outerTop}px ${outerBottom}px`;
+  previewFrame.style.height = dimensions.height + "px";
+  previewFrame.style.paddingBlock = `${innerTop}px ${innerBottom}px`;
+  previewFrame.style.paddingInline = `${innerLeft}px ${innerRight}px`;
   preview.style.alignItems = size.vertical === "default" ? "center" : size.vertical;
   preview.style.gap = label.gap + "px";
   preview.style.borderRadius = style.radiusMode === "corners"
@@ -590,15 +682,22 @@ function updatePreview() {
     : "none";
   preview.dataset.state = state;
   preview.setAttribute("aria-label", widget.name || "Предпросмотр текстового поля");
+  const floatingLabel = label.placement === "small-above";
+  previewFrame.dataset.placement = label.placement;
+  const labelContainer = labelHeight ? previewFrame : previewText.parentElement;
+  if (previewLabel.parentElement !== labelContainer) labelContainer.prepend(previewLabel);
   previewLabel.textContent = label.text;
   previewLabel.hidden = !label.text;
-  previewText.textContent = widget.placeholder || widgetTypes[widget.type].placeholder;
+  const defaultPlaceholder = widgetTypes[widget.type].placeholder;
+  const placeholder = (canShowHint() && widget.placeholder) || defaultPlaceholder;
+  previewText.placeholder = floatingLabel && label.text ? label.text : placeholder;
+  previewText.setAttribute("aria-label", label.text || widget.name || "Предпросмотр текстового поля");
   const [, insetRight, , insetLeft] = spacingSides(size.inset);
   previewText.style.paddingInline = `${insetLeft}px ${insetRight}px`;
   previewText.style.textAlign = style.align;
-  applyTypography(previewLabel, label);
   applyTypography(previewText, style);
-  previewText.style.color = "#8991a999";
+  applyTypography(previewLabel, label);
+  if (floatingLabel) previewLabel.style.fontSize = "12px";
   if (ui.view === "size") {
     for (const [dimension, hint] of Object.entries(dimensionHints())) {
       content.querySelector(`[data-model="size.${dimension}"]`).placeholder = hint;
@@ -650,10 +749,12 @@ function updateModel(event) {
   }
   const path = input.dataset.model;
   if (!path || (event.type === "input" && input.tagName === "SELECT")) return;
+  const dimension = path === "size.width" ? "width" : path === "size.height" ? "height" : null;
   if (input.type === "number") {
     const committed = event.type === "change";
     if (input.value === "" && input.hasAttribute("placeholder") && !input.validity.badInput) {
       setModel(path, null);
+      if (dimension === "height") widget.size.heightOffset = 0;
       updatePreview();
       return;
     }
@@ -661,6 +762,10 @@ function updateModel(event) {
     const number = input.value === "" ? modelAt(path) : Math.max(+input.min, Math.min(+input.max, input.valueAsNumber));
     if (!Number.isFinite(number)) return;
     setModel(path, number);
+    if (dimension && event.type === "input") {
+      if (dimension === "height") widget.size.heightOffset = heightExtras();
+      if (widget.size.dimensionModes[dimension] !== "fixed") setDimensionMode(dimension, "fixed");
+    }
     if (committed) input.value = number;
   } else {
     setModel(path, input.value);
@@ -679,6 +784,7 @@ stage.addEventListener("click", event => {
     colorDialog.close();
     shadowDraft = null;
     widget = createWidget(widget.type);
+    previewText.value = "";
     Object.assign(ui, { view: "main", state: "rest", menu: "" });
     ui.added.clear();
     showSettings();
@@ -704,16 +810,38 @@ stage.addEventListener("click", event => {
     const id = button.dataset.removeText;
     ui.added.delete(id);
     setModel(optionalTextFields[id].path, "");
+    if (id === "label") widget.label.placement = "left";
     showSettings(`.commands [data-add="${id}"]`);
+  } else if (button.dataset.labelPlacement) {
+    widget.label.placement = button.dataset.labelPlacement;
+    showSettings(".metadata-text-icon");
+  } else if (button.dataset.dimensionMode) {
+    const menu = button.closest(".dimension-mode-menu");
+    const { dimension } = menu.dataset;
+    const mode = button.dataset.dimensionMode;
+    if (mode === "fixed") {
+      if (widget.size[dimension] === null) {
+        widget.size[dimension] = dimensionHints()[dimension];
+        if (dimension === "height") widget.size.heightOffset = heightExtras();
+      }
+    } else {
+      widget.size[dimension] = null;
+      if (dimension === "height") widget.size.heightOffset = 0;
+    }
+    widget.size.dimensionModes[dimension] = mode;
+    showSettings(`[aria-controls="${menu.id}"]`);
   } else if ("toggleName" in button.dataset) {
     widget.name = widget.name ? "" : "Организация.Название";
     showSettings("[data-toggle-name]");
   } else if (step) {
-    const previousHeight = widget.size.height ?? widget.size.heightHint;
+    const previousHeight = widget.size.height === null
+      ? widget.size.heightHint : widget.size.height - widget.size.heightOffset;
     const nextHeight = Math.max(defaultSize.height, Math.min(200, previousHeight + Number(step)));
     if (nextHeight !== previousHeight) {
       widget.size.height = null;
+      widget.size.heightOffset = 0;
       widget.size.heightHint = nextHeight;
+      if (widget.size.dimensionModes.height === "fixed") setDimensionMode("height", "auto");
       const heightInput = content.querySelector('[data-model="size.height"]');
       if (heightInput) {
         heightInput.value = "";
@@ -867,6 +995,17 @@ stage.addEventListener("click", event => {
 function setTextStyleMenu(trigger, open) {
   document.getElementById(trigger.getAttribute("aria-controls")).hidden = !open;
   trigger.setAttribute("aria-expanded", String(open));
+  if (open && trigger.classList.contains("metadata-text-icon")) positionLabelPlacementMenu();
+}
+
+function positionLabelPlacementMenu() {
+  const menu = content.querySelector(".label-placement-menu:not([hidden])");
+  if (!menu) return;
+  menu.style.removeProperty("--menu-shift");
+  const bounds = menu.getBoundingClientRect();
+  const viewportWidth = document.documentElement.clientWidth;
+  const shift = Math.min(Math.max(8 - bounds.left, 0), viewportWidth - bounds.right - 22);
+  menu.style.setProperty("--menu-shift", shift + "px");
 }
 
 function positionLimitsMenu() {
@@ -879,6 +1018,7 @@ function positionLimitsMenu() {
 }
 
 window.addEventListener("resize", positionLimitsMenu);
+window.addEventListener("resize", positionLabelPlacementMenu);
 
 function closeFooterMenu(restoreFocus) {
   ui.menu = "";
@@ -886,7 +1026,7 @@ function closeFooterMenu(restoreFocus) {
 }
 
 document.addEventListener("pointerdown", event => {
-  const editorTrigger = content.querySelector(':is(.font-picker-trigger,.alignment-trigger)[aria-expanded="true"]');
+  const editorTrigger = content.querySelector(':is(.font-picker-trigger,.alignment-trigger,.metadata-text-icon)[aria-expanded="true"]');
   if (editorTrigger && !editorTrigger.parentElement.contains(event.target)) setTextStyleMenu(editorTrigger, false);
   if (!ui.menu || event.target.closest(".add-menu-anchor")) return;
   ui.menu = "";
@@ -904,7 +1044,7 @@ document.addEventListener("keydown", event => {
     return;
   }
   if (event.key === "Escape") {
-    const editorTrigger = content.querySelector(':is(.font-picker-trigger,.alignment-trigger)[aria-expanded="true"]');
+    const editorTrigger = content.querySelector(':is(.font-picker-trigger,.alignment-trigger,.metadata-text-icon)[aria-expanded="true"]');
     if (editorTrigger) {
       setTextStyleMenu(editorTrigger, false);
       editorTrigger.focus();
