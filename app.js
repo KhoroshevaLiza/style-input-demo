@@ -45,22 +45,29 @@ function defaultBorderColor(state) {
   return state === "rest" ? "#d2d6da" : "#8f99a3";
 }
 
-function fieldStyle(state) {
+function fieldGeometry(state, preset = "transparent") {
+  const filled = preset === "filled";
   return {
     radius: 0,
     radiusMode: "unified",
     cornerRadii: [0, 0, 0, 0],
-    borders: [0, 0, 1, 0],
+    borders: [0, 0, filled ? 0 : 1, 0],
     borderMode: "sides",
-    borderWidth: 1,
+    borderWidth: filled ? 0 : 1,
     borderLine: "solid",
     borderAlpha: 100,
-    background: null,
+    background: filled ? "#FFFFFF" : null,
     backgroundAlpha: 100,
-    textPreset: null,
     shadow: null,
+    borderColor: filled ? null : defaultBorderColor(state),
+  };
+}
+
+function fieldStyle(state) {
+  return {
+    ...fieldGeometry(state),
+    textPreset: null,
     align: "left",
-    borderColor: defaultBorderColor(state),
     ...typography("#000000"),
   };
 }
@@ -73,7 +80,8 @@ function createWidget(type) {
   return {
     type,
     name: "",
-    label: { text: "", placement: "left", gap: 8, ...typography("#8991a9") },
+    defaultValue: "",
+    label: { text: "", placement: "none", gap: 8, ...typography("#8991a9") },
     placeholder: "",
     limitLength: "",
     limitPattern: "",
@@ -101,14 +109,24 @@ const shadowParameters = [
 ];
 let shadowDraft = null;
 const footerOptions = [
+  ["variable", "Переменная", 20, 9],
+  ["description", "Описание", 20, 20],
+  ["appearance", "Оформление", 18, 20],
+  ["visibility", "Видимость", 20, 19],
+  ["validation", "Валидация"],
   ["hint", "Подсказка", 20, 15],
   ["limits", "Ограничения", 18, 18],
-  ["label", "Метка", 20, 9],
   ["multiline", "Многострочное", 20, 15],
+  ["required", "Заполнять обязательно"],
 ];
-const optionalTextFields = {
+const activeFooterCommands = ["variable", "appearance", "hint"];
+const appearanceParts = ["field", "size", "label"];
+let separateAppearance = false;
+const visualCommandIds = ["description", "visibility", "validation", "multiline", "required"];
+const metadataTextFields = {
+  defaultValue: { path: "defaultValue", title: "Значение по умолчанию", label: "Значение по умолчанию", caption: "по умолчанию" },
   hint: { path: "placeholder", title: "Подсказка", label: "Подсказка", caption: "подсказка", remove: "Убрать подсказку" },
-  label: { path: "label.text", title: "Метка", label: "Текст метки", caption: "метка", remove: "Убрать метку" },
+  label: { path: "label.text", title: "Название", label: "Текст метки", caption: "название" },
 };
 const content = document.querySelector("#settings-content");
 const layout = document.querySelector(".widget-layout");
@@ -210,12 +228,52 @@ function fontControls(path, alignment = false) {
 }
 
 function footerIcon([id, , width, height]) {
+  if (id === "validation") return '<span class="validation-icon">!</span>';
+  if (id === "required") return "∗";
   return `<img src="assets/footer-${id}.svg" width="${width}" height="${height}" alt="">`;
 }
 
 function availableFooterOptions() {
   return footerOptions.filter(([id]) =>
-    (id !== "hint" || canShowHint()) && (!optionalTextFields[id] || !ui.added.has(id)));
+    (id !== "hint" || canShowHint()) && !ui.added.has(id) &&
+    (id !== "appearance" || !appearanceParts.every(hasAppearancePart)));
+}
+
+function hasAppearancePart(part) {
+  return ui.added.has("appearance") || ui.added.has(`appearance-${part}`);
+}
+
+function appearanceShortcut() {
+  if (!separateAppearance) return null;
+  const remaining = appearanceParts.filter(part => !hasAppearancePart(part));
+  if (remaining.length !== 1) return null;
+  const [part] = remaining;
+  const options = {
+    field: ["appearance", "Оформление поля", 18, 20],
+    size: ["appearance-size", "Размер", 18, 18],
+    label: ["appearance", "Оформление метки", 18, 20],
+  };
+  return { part, option: options[part] };
+}
+
+function appearanceMenuItems() {
+  return appearanceParts.filter(part => !hasAppearancePart(part)).map(part =>
+    `<button class="add-menu-item" type="button" data-appearance-part="${part}">${views[part]}</button>`).join("");
+}
+
+function appearanceCommand(option) {
+  const shortcut = appearanceShortcut();
+  if (shortcut) {
+    return `<button class="command appearance-command" type="button" data-appearance-part="${shortcut.part}" aria-label="${shortcut.option[1]}">${footerIcon(shortcut.option)}</button>`;
+  }
+  return `<span class="appearance-command-anchor">
+    <button class="command appearance-command" type="button" data-text-styles aria-label="Оформление" aria-controls="appearance-menu" aria-expanded="false">${footerIcon(option)}</button>
+    <span class="text-style-menu appearance-menu" id="appearance-menu" role="group" aria-labelledby="appearance-menu-title" hidden>
+      <span class="add-menu-header" id="appearance-menu-title">Оформление</span>
+      <span class="add-menu-items">${appearanceMenuItems()}</span>
+      <button class="text-style-close" type="button" data-close-text-styles aria-label="Закрыть меню оформления"><img src="assets/close.svg" width="12" height="12" alt=""></button>
+    </span>
+  </span>`;
 }
 
 function canShowHint() {
@@ -223,41 +281,49 @@ function canShowHint() {
 }
 
 const labelPlacements = [
-  ["left", "Текстом слева", 9],
-  ["above", "Текстом сверху", 12],
-  ["small-above", "Малая метка сверху", 10],
+  ["left", "В метке слева", 9],
+  ["above", "В метке сверху", 12],
+  ["small-above", "С малой меткой сверху", 10],
+  ["none", "Без метки", 11],
 ];
 
 function labelPlacementPicker() {
   const selected = widget.label.placement;
   const icon = (placement, height) =>
-    `<img src="assets/label-${placement}.svg" width="20" height="${height}" alt="">`;
+    `<img src="assets/label-${placement === "none" ? "placement" : placement}.svg" width="20" height="${height}" alt="">`;
+  const options = labelPlacements.map(([placement, title, height]) =>
+    `<button class="add-menu-item label-placement-option" type="button"
+      data-label-placement="${placement}" aria-pressed="${placement === selected}">
+      <span class="menu-icon">${icon(placement, height)}</span>
+      <span>${title}</span>
+    </button>`);
   const [, title, height] = labelPlacements.find(([placement]) => placement === selected);
   return `<span class="label-placement">
     <button class="metadata-text-icon" type="button" data-text-styles data-placement="${selected}"
       aria-label="Расположение метки" title="${title}" aria-expanded="false"
       aria-controls="label-placement-menu">${icon(selected, height)}</button>
-    <span class="text-style-menu label-placement-menu" id="label-placement-menu" role="group" aria-label="Расположение метки" hidden>
-      <span class="text-style-options">
-        ${labelPlacements.map(([placement, title, height]) => `<button class="add-menu-item label-placement-option" type="button"
-          data-label-placement="${placement}" aria-pressed="${placement === selected}">
-          <span class="menu-icon">${icon(placement, height)}</span><span>${title}</span>
-        </button>`).join("")}
+    <span class="text-style-menu label-placement-menu" id="label-placement-menu" role="group" aria-labelledby="label-placement-title" hidden>
+      <span class="add-menu-header">
+        <span id="label-placement-title">Отображение</span>
+        <button class="add-menu-close" type="button" data-close-text-styles aria-label="Закрыть меню расположения метки"><img src="assets/close.svg" width="12" height="12" alt=""></button>
       </span>
-      <button class="text-style-close" type="button" data-close-text-styles aria-label="Закрыть меню расположения метки"><img src="assets/close.svg" width="12" height="12" alt=""></button>
+      <span class="text-style-options">${options.slice(0, 2).join("")}</span>
+      <span class="label-placement-heading">В поле</span>
+      <span class="text-style-options">${options.slice(2).join("")}</span>
     </span>
   </span>`;
 }
 
-function optionalTextRow(id) {
-  const { path, title, label, caption, remove } = optionalTextFields[id];
-  return `<div class="metadata-text-row">
+function metadataTextRow(id) {
+  const { path, title, label, caption, remove } = metadataTextFields[id];
+  return `<div class="metadata-text-row${id === "defaultValue" ? " default-value-row" : ""}">
     <span class="metadata-text-control${id === "label" ? " with-icon" : ""}"${id === "label" ? ` style="--label-text-color:${colorFill(widget.label.color, widget.label.colorAlpha ?? 100)}"` : ""}>
       ${textInput(path, label, title)}
-      <span class="metadata-text-caption" aria-hidden="true">${caption}</span>
+      ${caption ? `<span class="metadata-text-caption" aria-hidden="true">${caption}</span>` : ""}
+      ${id === "label" && !hasAppearancePart("label") ? textColorButton("label", "metadata-label-color") : ""}
       ${id === "label" ? labelPlacementPicker() : ""}
     </span>
-    <button class="border-reset metadata-text-reset" type="button" data-remove-text="${id}" aria-label="${remove}"><img src="assets/border-reset.svg" width="9" height="9" alt=""></button>
+    ${remove ? `<button class="border-reset metadata-text-reset" type="button" data-remove-text="${id}" aria-label="${remove}"><img src="assets/border-reset.svg" width="9" height="9" alt=""></button>` : ""}
   </div>`;
 }
 
@@ -267,17 +333,28 @@ function footerMenu() {
       <span id="add-menu-title">Добавить</span>
       <button class="add-menu-close" type="button" data-menu-close aria-label="Закрыть меню"><img src="assets/close.svg" width="12" height="12" alt=""></button>
     </div>
-    <div class="add-menu-items">${[...availableFooterOptions(), ["required", "Заполнять обязательно"]].map(([id, name, width, height]) => {
-      const hasSubmenu = id === "limits";
-      const item = `<button class="add-menu-item" type="button" data-add="${id}"${hasSubmenu ? ' aria-controls="limits-menu"' : ""}>
-        <span class="menu-icon" aria-hidden="true">${width ? footerIcon([id, name, width, height]) : id === "required" ? "∗" : ""}</span>
-        <span>${name}</span>${hasSubmenu ? '<img class="menu-chevron" src="assets/footer-chevron.svg" width="7" height="12" alt="">' : ""}
+    <div class="add-menu-items">${availableFooterOptions().map(option => {
+      const [id] = option;
+      const shortcut = id === "appearance" ? appearanceShortcut() : null;
+      const displayed = shortcut?.option ?? option;
+      const hasSubmenu = id === "limits" || (id === "appearance" && separateAppearance && !shortcut);
+      const submenuId = `${id}-submenu`;
+      const action = shortcut ? `data-appearance-part="${shortcut.part}"`
+        : visualCommandIds.includes(id) ? 'aria-disabled="true"' : `data-add="${id}"`;
+      const item = `<button class="add-menu-item" type="button" ${action}${hasSubmenu ? ` aria-controls="${id === "limits" ? "limits-menu" : submenuId}"` : ""}>
+        <span class="menu-icon" aria-hidden="true">${footerIcon(displayed)}</span>
+        <span>${displayed[1]}</span>${hasSubmenu ? '<img class="menu-chevron" src="assets/footer-chevron.svg" width="7" height="12" alt="">' : ""}
       </button>`;
+      if (id === "appearance" && hasSubmenu) return `<div class="limits-option">${item}
+        <div class="limits-menu appearance-submenu" id="${submenuId}" role="group" aria-label="Свойства оформления">
+          <div class="limits-menu-panel">${appearanceMenuItems()}</div>
+        </div>
+      </div>`;
       return hasSubmenu ? `<div class="limits-option">${item}
         <div class="limits-menu" id="limits-menu" role="group" aria-label="Ограничения">
           <div class="limits-menu-panel">
-            <button class="add-menu-item" type="button" data-add="length">Количество символов</button>
-            <button class="add-menu-item" type="button" data-add="pattern">Вводимые символы</button>
+            <button class="add-menu-item" type="button" aria-disabled="true">Количество символов</button>
+            <button class="add-menu-item" type="button" aria-disabled="true">Вводимые символы</button>
           </div>
         </div>
       </div>` : item;
@@ -285,16 +362,68 @@ function footerMenu() {
   </div>`;
 }
 
+function presetTypography(key) {
+  const { fontSize, fontWeight, italic } = textStylePresets[key];
+  const { color, ...base } = typography("");
+  return { ...base, fontSize, fontWeight, italic };
+}
+
+function applyTextPreset(style, key) {
+  Object.assign(style, presetTypography(key), { textPreset: key });
+  if ("align" in style) style.align = "left";
+}
+
+function fontOverrides(style, key) {
+  const base = presetTypography(key);
+  const changes = [];
+  if (style.fontSize !== base.fontSize) changes.push(`Размер текста - ${style.fontSize}px`);
+  if (style.bold !== base.bold) changes.push(`Жирность - ${style.bold ? "жирный" : "нормальная"}`);
+  if (style.italic !== base.italic) changes.push(`Стиль текста - ${style.italic ? "курсив" : "нормальный"}`);
+  if (style.underline !== base.underline || style.strike !== base.strike) {
+    const decorations = [style.underline && "подчеркнутый", style.strike && "зачеркнутый"].filter(Boolean);
+    changes.push(`Декорирование текста - ${decorations.join(", ") || "нет"}`);
+  }
+  if (style.align && style.align !== "left") {
+    const [, title] = textAlignments.find(([value]) => value === style.align);
+    changes.push(`Выравнивание - ${title.toLowerCase()}`);
+  }
+  if (style.font !== base.font) changes.push(`Шрифт - ${style.font}`);
+  return changes;
+}
+
+function overrideNotice(changes, id, field = false) {
+  if (!changes.length) return "";
+  return `<span class="font-overrides${field ? " field-overrides" : ""}">
+    <button class="font-overrides-trigger" type="button" aria-label="Параметры стиля переопределены" aria-describedby="${id}-changes"></button>
+    <span class="font-overrides-panel">
+      <button class="add-menu-close font-overrides-close" type="button" data-close-font-overrides aria-label="Закрыть подсказку"><img src="assets/close.svg" width="12" height="12" alt=""></button>
+      <span class="font-overrides-heading">Изменены:</span>
+      <span class="font-override-list" id="${id}-changes">${changes.map(change => `<span>${change}</span>`).join("")}</span>
+      <span class="font-overrides-actions">
+        ${field ? "" : '<span><i aria-hidden="true">&#xe62c;</i>Обновить текущий стиль</span><span><i aria-hidden="true">&#xe628;</i>Сохранить как новый</span>'}
+        <button type="button" ${field ? "data-reset-field-overrides" : "data-reset-font-overrides"}><i aria-hidden="true">&#xe629;</i>Сбросить изменения</button>
+      </span>
+    </span>
+  </span>`;
+}
+
 function textStylePicker(id, path) {
   const menuId = `${id}-style-menu`;
-  const selected = modelAt(path).textPreset || "main";
+  const style = modelAt(path);
+  const selected = style.textPreset || "main";
+  const changes = fontOverrides(style, selected);
   const options = Object.entries(textStylePresets).map(([key, preset]) => {
     const active = key === selected;
-    const attributes = `class="text-style-option${active ? " selected" : ""}" style="font-size:${preset.fontSize}px;font-weight:${preset.fontWeight};font-style:${preset.italic ? "italic" : "normal"}"`;
-    return `<span role="listitem"><button type="button" ${attributes} data-text-preset="${key}" aria-pressed="${active}">${preset.title}</button></span>`;
+    const overridden = active && changes.length;
+    const attributes = `class="text-style-option${active ? " selected" : ""}${overridden ? " overridden" : ""}"`;
+    return `<span role="listitem"><button type="button" ${attributes} data-text-preset="${key}" aria-pressed="${active}">
+      <span style="font-size:${preset.fontSize}px;font-weight:${preset.fontWeight};font-style:${preset.italic ? "italic" : "normal"}">${preset.title}</span>
+      ${overridden ? '<span class="text-style-override-note">Параметры стиля переопределены <i aria-hidden="true">&#xe64b;</i></span>' : ""}
+    </button></span>`;
   }).join("");
-  return `<span class="text-style-anchor" data-text-style-path="${path}">
+  return `<span class="text-style-anchor" data-text-style-path="${path}" data-text-style-id="${id}">
     <button class="link text-style-link" type="button" data-text-styles aria-expanded="false" aria-controls="${menuId}">${textStylePresets[selected].title}</button>
+    ${overrideNotice(changes, menuId)}
     <span class="text-style-menu" id="${menuId}" role="group" aria-label="Стили текста" hidden>
       <span class="text-style-options" role="list">
         ${options}
@@ -305,11 +434,50 @@ function textStylePicker(id, path) {
   </span>`;
 }
 
+function refreshFontWarning(path) {
+  const picker = content.querySelector(`[data-text-style-path="${path}"]`);
+  if (picker) picker.outerHTML = textStylePicker(picker.dataset.textStyleId, path);
+}
+
 const fieldPresets = { transparent: "Прозрачное", filled: "Залитое" };
+
+function fieldOverrides() {
+  const changes = [];
+  const lineNames = { solid: "сплошная", dashed: "пунктирная" };
+  const colorText = (color, alpha) => color
+    ? color.toUpperCase() + (alpha === 100 ? "" : `, ${alpha / 100}`) : "пусто";
+  const pixels = values => values.every(value => value === values[0])
+    ? `${values[0]}px` : values.map(value => `${value}px`).join(" / ");
+  for (const [state, title] of states) {
+    const style = widget.styles[state];
+    const base = fieldGeometry(state, widget.preset);
+    const add = text => changes.push(state === "rest" ? text : `${title}: ${text}`);
+    const radii = style.radiusMode === "corners" ? style.cornerRadii : [style.radius];
+    if (radii.some(radius => radius !== base.radius)) add(`Радиус скругления - ${pixels(radii)}`);
+    if (style.borderColor !== base.borderColor || (style.borderColor && style.borderAlpha !== base.borderAlpha)) {
+      add(`Границы - ${colorText(style.borderColor, style.borderAlpha)}`);
+    }
+    if (style.background !== base.background || (style.background && style.backgroundAlpha !== base.backgroundAlpha)) {
+      add(`Фон - ${colorText(style.background, style.backgroundAlpha)}`);
+    }
+    if (style.shadow) {
+      const { color, alpha, x, y, blur, spread } = style.shadow;
+      const hexAlpha = Math.round(alpha * 255 / 100).toString(16).padStart(2, "0").toUpperCase();
+      add(`Тень - ${color.toUpperCase()}${hexAlpha}, X:${x}, Y:${y}, Блюр:${blur}, Размах:${spread}`);
+    }
+    const borders = style.borderColor
+      ? style.borderMode === "sides" ? style.borders : Array(4).fill(style.borderWidth) : [0, 0, 0, 0];
+    if (borders.some((width, index) => width !== base.borders[index])) add(`Размер границы - ${pixels(borders)}`);
+    if ((style.borderColor && style.borderLine) !== (base.borderColor && base.borderLine)) {
+      add(`Стиль границы - ${style.borderColor ? lineNames[style.borderLine] : "пусто"}`);
+    }
+  }
+  return changes;
+}
 
 function fieldPresetPicker() {
   const { color, colorAlpha = 100 } = widget.styles.rest;
-  return `<span class="style-picker-shell" data-field-preset="${widget.preset}" style="color:${colorFill(color, colorAlpha)}">
+  return `<span class="field-style-with-overrides"><span class="style-picker-shell" data-field-preset="${widget.preset}" style="color:${colorFill(color, colorAlpha)}">
     <button class="style-picker" type="button" data-text-styles aria-expanded="false" aria-controls="field-preset-menu">${fieldPresets[widget.preset]}</button>
     <span class="field-preset-menu" id="field-preset-menu" role="group" aria-label="Стиль поля" hidden>
       ${Object.entries(fieldPresets).map(([id, title]) => `
@@ -317,7 +485,7 @@ function fieldPresetPicker() {
       `).join("")}
       <button class="text-style-close" type="button" data-close-text-styles aria-label="Закрыть меню стиля"><img src="assets/close.svg" width="12" height="12" alt=""></button>
     </span>
-  </span>`;
+  </span>${overrideNotice(fieldOverrides(), "field-preset", true)}</span>`;
 }
 
 const sizeStepButtons = `
@@ -326,37 +494,64 @@ const sizeStepButtons = `
 `;
 document.querySelector(".header-size").innerHTML = sizeStepButtons;
 
+function examplePropertyCard(id, title, hint) {
+  if (!ui.added.has(id)) return "";
+  return `<div class="card example-property">
+    <div class="example-property-title"><strong>${title}</strong><span class="example-close" aria-hidden="true">&#xe66c;</span></div>
+    <div class="example-property-body">${hint}${id !== "description" ? '<span class="example-formula-icon" aria-hidden="true">&#xe746;</span>' : ""}</div>
+  </div>`;
+}
+
+function appearanceCard() {
+  if (!appearanceParts.some(hasAppearancePart)) return "";
+  const remove = part => separateAppearance
+    ? `<button class="border-reset appearance-part-remove" type="button" data-remove-appearance-part="${part}" aria-label="Убрать настройку «${views[part]}»"><img src="assets/border-reset.svg" width="9" height="9" alt=""></button>`
+    : "";
+  return `<div class="card appearance"${separateAppearance ? ' aria-label="Оформление"' : ' aria-labelledby="appearance-title"'}>
+    ${separateAppearance ? "" : `<div class="appearance-heading">
+      <h3 id="appearance-title">Оформление</h3>
+      <button class="border-reset" type="button" data-remove-appearance aria-label="Убрать оформление"><img src="assets/border-reset.svg" width="9" height="9" alt=""></button>
+    </div>`}
+    ${hasAppearancePart("field") ? row("Стиль", fieldPresetPicker() + remove("field") + arrow("field")) +
+      row("Шрифт", textStylePicker("font", "styles.rest") + textColorButton("styles.rest")) : ""}
+    ${hasAppearancePart("size") ? row("Размер", `<div class="size-steps">${sizeStepButtons}</div>` + remove("size") + arrow("size")) : ""}
+    ${hasAppearancePart("label") ? row("Метка", textStylePicker("label", "label") + textColorButton("label") + remove("label") + arrow("label")) : ""}
+  </div>`;
+}
+
 function mainView() {
   return `<div class="card metadata">
-    ${ui.added.has("label") ? optionalTextRow("label") : ""}
-    <button class="name-row field-name" type="button" data-toggle-name aria-pressed="${Boolean(widget.name)}">
-      <span>${widget.name || "Имя поля"}</span>
-      ${widget.name ? '<span class="name-caption">имя</span>' : ""}
-      <span class="name-icon" aria-hidden="true">&#xea90;</span>
-    </button>
-    ${canShowHint() && ui.added.has("hint") ? optionalTextRow("hint") : ""}
+    ${metadataTextRow("label")}
+    ${metadataTextRow("defaultValue")}
+    ${ui.added.has("variable") ? `<div class="metadata-text-row">
+      <button class="name-row" type="button" data-toggle-name aria-pressed="${Boolean(widget.name)}">
+        <span>${widget.name || "Переменная"}</span>
+        ${widget.name ? '<span class="name-caption">переменная</span>' : ""}
+        <span class="name-icon" aria-hidden="true">&#xea90;</span>
+      </button>
+      <button class="border-reset metadata-text-reset" type="button" data-remove-variable aria-label="Убрать переменную"><img src="assets/border-reset.svg" width="9" height="9" alt=""></button>
+    </div>` : ""}
+    ${canShowHint() && ui.added.has("hint") ? metadataTextRow("hint") : ""}
   </div>
   ${["required", "multiline", "length", "pattern"].some(id => ui.added.has(id)) ? `<div class="card added-options">
-    ${ui.added.has("required") ? '<div class="row">Заполнять обязательно</div>' : ""}
-    ${ui.added.has("multiline") ? '<div class="row">Многострочное</div>' : ""}
-    ${ui.added.has("length") ? textInput("limitLength", "Количество символов", "Количество символов") : ""}
-    ${ui.added.has("pattern") ? textInput("limitPattern", "Вводимые символы", "Вводимые символы") : ""}
+    ${ui.added.has("required") ? '<div class="row">Заполнять обязательно<span class="example-close" aria-hidden="true">&#xe66c;</span></div>' : ""}
+    ${ui.added.has("multiline") ? '<div class="row">Многострочное <span>от</span><span class="example-number">1</span><span>до</span><span class="example-number example-hint">auto</span><span>строк</span><span class="example-close" aria-hidden="true">&#xe66c;</span></div>' : ""}
+    ${ui.added.has("length") ? `<div class="row">Количество символов <span>до</span><span class="example-number">${widget.limitLength}</span><span class="example-close" aria-hidden="true">&#xe66c;</span></div>` : ""}
+    ${ui.added.has("pattern") ? `<div class="row">Регулярное выражение<span class="example-close" aria-hidden="true">&#xe66c;</span></div><div class="example-pattern example-hint">${escapeHtml(widget.limitPattern)}</div>` : ""}
   </div>` : ""}
-  <div class="card appearance">
-    ${row("Стиль", fieldPresetPicker() + arrow("field"))}
-    ${row("Шрифт", textStylePicker("font", "styles.rest") + textColorButton("styles.rest"))}
-    ${row("Размер", `<div class="size-steps">${sizeStepButtons}</div>` + arrow("size"))}
-    ${row("Метка", textStylePicker("label", "label") + textColorButton("label") + arrow("label"))}
-  </div>
-  <div class="commands">
-    ${availableFooterOptions().map(option => optionalTextFields[option[0]]
+  ${examplePropertyCard("description", "Описание", "Введите текст, который будет виден в окне подсказки")}
+  ${examplePropertyCard("visibility", "Видимость", "Если формула вернет true, то поле появится")}
+  ${examplePropertyCard("validation", "Валидация", "Проверка заполнения данных поможет исключить ошибки")}
+  ${appearanceCard()}
+  ${availableFooterOptions().length ? `<div class="commands">
+    ${availableFooterOptions().slice(0, 4).map(option => option[0] === "appearance" && separateAppearance ? appearanceCommand(option) : activeFooterCommands.includes(option[0])
       ? `<button class="command" type="button" data-add="${option[0]}" aria-label="${option[1]}">${footerIcon(option)}</button>`
-      : `<span class="command" aria-hidden="true">${footerIcon(option)}</span>`).join("")}
+      : `<span class="command" title="${option[1]}" aria-hidden="true">${footerIcon(option)}</span>`).join("")}
     <div class="add-menu-anchor">
       <button class="command" type="button" data-menu-toggle aria-label="Добавить" aria-expanded="${Boolean(ui.menu)}"${ui.menu ? ' aria-controls="add-menu"' : ""}>${footerIcon(["more", "", 18, 5])}</button>
       ${ui.menu ? footerMenu() : ""}
     </div>
-  </div>`;
+  </div>` : ""}`;
 }
 
 function radiusEditor(path, style) {
@@ -389,10 +584,10 @@ function colorSettingSwatch(color, alpha) {
   return `<span class="swatch color-swatch translucent-color" style="--opaque-color:${color};--translucent-color:${colorFill(color, alpha)}" aria-hidden="true"></span>`;
 }
 
-function textColorButton(path) {
+function textColorButton(path, className = "") {
   const { color, colorAlpha = 100 } = modelAt(path);
   const label = path === "label" ? "Цвет метки" : "Цвет текста";
-  return `<button class="field-color-trigger" type="button" data-text-color="${path}"
+  return `<button class="field-color-trigger ${className}" type="button" data-text-color="${path}"
     aria-haspopup="dialog" aria-label="${label}" title="${color.toUpperCase()}">${colorSettingSwatch(color, colorAlpha)}</button>`;
 }
 
@@ -548,7 +743,7 @@ function setDimensionMode(dimension, mode) {
 
 function labelRowHeight() {
   const { text, placement } = widget.label;
-  if (!text || placement === "left") return 0;
+  if (!text || placement === "left" || placement === "none") return 0;
   return placement === "above" ? 24 : 16;
 }
 
@@ -627,7 +822,7 @@ function showSettings(focusSelector) {
   document.querySelector(".header-size").hidden = ui.view !== "size";
   content.dataset.view = ui.view;
   content.innerHTML = renderView[ui.view]();
-  positionLimitsMenu();
+  positionAddMenu();
   syncShadowControls();
   if (focusSelector) document.querySelector(focusSelector)?.focus();
 }
@@ -687,10 +882,12 @@ function updatePreview() {
   const labelContainer = labelHeight ? previewFrame : previewText.parentElement;
   if (previewLabel.parentElement !== labelContainer) labelContainer.prepend(previewLabel);
   previewLabel.textContent = label.text;
-  previewLabel.hidden = !label.text;
+  previewLabel.hidden = !label.text || label.placement === "none";
   const defaultPlaceholder = widgetTypes[widget.type].placeholder;
   const placeholder = (canShowHint() && widget.placeholder) || defaultPlaceholder;
-  previewText.placeholder = floatingLabel && label.text ? label.text : placeholder;
+  const showNameAsPlaceholder = floatingLabel || label.placement === "none";
+  previewText.placeholder = (showNameAsPlaceholder && label.text) || placeholder;
+  previewText.style.setProperty("--preview-placeholder-color", colorFill(label.color, 60));
   previewText.setAttribute("aria-label", label.text || widget.name || "Предпросмотр текстового поля");
   const [, insetRight, , insetLeft] = spacingSides(size.inset);
   previewText.style.paddingInline = `${insetLeft}px ${insetRight}px`;
@@ -705,18 +902,12 @@ function updatePreview() {
   }
 }
 
-function applyPreset(preset) {
+function applyPreset(preset, resetInset = true) {
   const filled = preset === "filled";
   for (const [state, style] of Object.entries(widget.styles)) {
-    style.background = filled ? "#FFFFFF" : null;
-    style.backgroundAlpha = 100;
-    style.borders = [0, 0, filled ? 0 : 1, 0];
-    style.borderWidth = filled ? 0 : 1;
-    style.borderColor = filled ? null : defaultBorderColor(state);
-    style.borderAlpha = 100;
-    style.borderLine = "solid";
-    style.borderMode = "sides";
+    Object.assign(style, fieldGeometry(state, preset));
   }
+  if (!resetInset) return;
   const inset = filled ? 4 : 0;
   widget.size.inset.x = inset;
   widget.size.inset.sides = [0, inset, 0, inset];
@@ -749,6 +940,7 @@ function updateModel(event) {
   }
   const path = input.dataset.model;
   if (!path || (event.type === "input" && input.tagName === "SELECT")) return;
+  const previous = modelAt(path);
   const dimension = path === "size.width" ? "width" : path === "size.height" ? "height" : null;
   if (input.type === "number") {
     const committed = event.type === "change";
@@ -769,25 +961,119 @@ function updateModel(event) {
     if (committed) input.value = number;
   } else {
     setModel(path, input.value);
+    if (path === "defaultValue" && event.type === "input") previewText.value = input.value;
+  }
+  if (path.endsWith(".fontSize") && modelAt(path) !== previous) {
+    refreshFontWarning(path.slice(0, -".fontSize".length));
   }
   updatePreview();
 }
 
 const stage = document.querySelector(".settings-stage");
+const systemViewInputs = document.querySelectorAll('input[name="system-view"]');
+
+function loadSystemView(view) {
+  colorDialog.close();
+  shadowDraft = null;
+  widget = createWidget(widget.type);
+  previewText.value = "";
+  Object.assign(ui, { view: "main", state: "rest", menu: "" });
+  ui.added.clear();
+  if (view === "maximum") {
+    for (const [id] of footerOptions) ui.added.add(id);
+    if (separateAppearance) {
+      ui.added.delete("appearance");
+      for (const part of appearanceParts) ui.added.add(`appearance-${part}`);
+    }
+    ui.added.add("length");
+    ui.added.add("pattern");
+    Object.assign(widget, {
+      name: "Организация.Название",
+      defaultValue: "Микропредприятие",
+      placeholder: "Любые важные детали",
+      limitLength: "10",
+      limitPattern: String.raw`/^(a-z0-9_\.-]+)@`,
+    });
+    Object.assign(widget.label, { text: "Примечание", placement: "left" });
+  }
+  for (const input of systemViewInputs) input.checked = input.value === view;
+  showSettings();
+  updatePreview();
+}
+
+for (const input of systemViewInputs) input.addEventListener("change", () => {
+  if (input.checked) loadSystemView(input.value);
+});
+
+for (const input of document.querySelectorAll('input[name="appearance-mode"]')) {
+  input.addEventListener("change", () => {
+    if (!input.checked) return;
+    separateAppearance = input.value === "separate";
+    if (separateAppearance && ui.added.delete("appearance")) {
+      for (const part of appearanceParts) ui.added.add(`appearance-${part}`);
+    } else if (!separateAppearance && appearanceParts.some(hasAppearancePart)) {
+      for (const part of appearanceParts) ui.added.delete(`appearance-${part}`);
+      ui.added.add("appearance");
+    }
+    ui.menu = "";
+    showSettings();
+    updatePreview();
+  });
+}
+
+function resetAppearancePart(part, defaults) {
+  if (part === "field") {
+    widget.preset = defaults.preset;
+    widget.styles = defaults.styles;
+  } else if (part === "size") {
+    widget.size = defaults.size;
+  } else {
+    const { text, placement, color, colorAlpha } = widget.label;
+    widget.label = { ...defaults.label, text, placement, color };
+    if (colorAlpha !== undefined) widget.label.colorAlpha = colorAlpha;
+  }
+}
+
+function clearMaximumOnlyProperties() {
+  const maximum = document.querySelector('input[name="system-view"][value="maximum"]');
+  if (!maximum.checked) return;
+  maximum.checked = false;
+  for (const id of [...visualCommandIds, "limits", "length", "pattern"]) ui.added.delete(id);
+  widget.limitLength = "";
+  widget.limitPattern = "";
+}
+
 stage.addEventListener("input", updateModel);
 stage.addEventListener("change", updateModel);
+stage.addEventListener("pointerover", event => {
+  const notice = event.target.closest(".font-overrides");
+  if (notice && !notice.contains(event.relatedTarget)) positionFontNotice(notice);
+});
+stage.addEventListener("pointerout", event => {
+  const notice = event.target.closest(".font-overrides");
+  if (notice && !notice.contains(event.relatedTarget)) delete notice.dataset.dismissed;
+});
+stage.addEventListener("focusin", event => {
+  const notice = event.target.closest(".font-overrides");
+  if (notice && !notice.contains(event.relatedTarget)) {
+    delete notice.dataset.dismissed;
+    positionFontNotice(notice);
+  }
+});
+
+function positionFontNotice(notice) {
+  delete notice.dataset.below;
+  const panel = notice.querySelector(".font-overrides-panel");
+  if (panel.getBoundingClientRect().top < 8) notice.dataset.below = "true";
+}
+
 stage.addEventListener("click", event => {
   const button = event.target.closest("button");
   if (!button) return;
   const { view, state, format, step } = button.dataset;
   if ("resetWidget" in button.dataset) {
-    colorDialog.close();
-    shadowDraft = null;
-    widget = createWidget(widget.type);
-    previewText.value = "";
-    Object.assign(ui, { view: "main", state: "rest", menu: "" });
-    ui.added.clear();
-    showSettings();
+    loadSystemView("initial");
+    return;
   } else if (view) {
     colorDialog.close();
     shadowDraft = null;
@@ -806,11 +1092,42 @@ stage.addEventListener("click", event => {
   } else if (format) {
     setModel(format, !modelAt(format));
     button.setAttribute("aria-pressed", modelAt(format));
+    refreshFontWarning(format.slice(0, format.lastIndexOf(".")));
+  } else if ("closeFontOverrides" in button.dataset) {
+    const notice = button.closest(".font-overrides");
+    notice.dataset.dismissed = "true";
+    notice.parentElement.querySelector(".text-style-link, .style-picker").focus();
+  } else if ("resetFieldOverrides" in button.dataset) {
+    applyPreset(widget.preset, false);
+    showSettings(".style-picker");
+  } else if ("resetFontOverrides" in button.dataset) {
+    const picker = button.closest("[data-text-style-path]");
+    const style = modelAt(picker.dataset.textStylePath);
+    applyTextPreset(style, style.textPreset || "main");
+    showSettings(`[aria-controls="${picker.dataset.textStyleId}-style-menu"]`);
+  } else if ("removeAppearance" in button.dataset) {
+    clearMaximumOnlyProperties();
+    const defaults = createWidget(widget.type);
+    for (const part of appearanceParts) resetAppearancePart(part, defaults);
+    ui.state = "rest";
+    ui.added.delete("appearance");
+    showSettings('.commands [data-add="appearance"]');
+  } else if (button.dataset.removeAppearancePart) {
+    clearMaximumOnlyProperties();
+    const part = button.dataset.removeAppearancePart;
+    ui.added.delete(`appearance-${part}`);
+    resetAppearancePart(part, createWidget(widget.type));
+    showSettings(".appearance-command");
+  } else if (button.dataset.appearancePart) {
+    const part = button.dataset.appearancePart;
+    ui.added.add(`appearance-${part}`);
+    ui.menu = "";
+    showSettings(`[data-remove-appearance-part="${part}"]`);
   } else if (button.dataset.removeText) {
+    clearMaximumOnlyProperties();
     const id = button.dataset.removeText;
     ui.added.delete(id);
-    setModel(optionalTextFields[id].path, "");
-    if (id === "label") widget.label.placement = "left";
+    setModel(metadataTextFields[id].path, "");
     showSettings(`.commands [data-add="${id}"]`);
   } else if (button.dataset.labelPlacement) {
     widget.label.placement = button.dataset.labelPlacement;
@@ -833,6 +1150,11 @@ stage.addEventListener("click", event => {
   } else if ("toggleName" in button.dataset) {
     widget.name = widget.name ? "" : "Организация.Название";
     showSettings("[data-toggle-name]");
+  } else if ("removeVariable" in button.dataset) {
+    clearMaximumOnlyProperties();
+    widget.name = "";
+    ui.added.delete("variable");
+    showSettings('.commands [data-add="variable"]');
   } else if (step) {
     const previousHeight = widget.size.height === null
       ? widget.size.heightHint : widget.size.height - widget.size.heightOffset;
@@ -864,20 +1186,21 @@ stage.addEventListener("click", event => {
     if (previous) setTextStyleMenu(previous, false);
     if (open) setTextStyleMenu(button, true);
   } else if ("closeTextStyles" in button.dataset) {
-    const trigger = content.querySelector(`[aria-controls="${button.parentElement.id}"]`);
+    const trigger = content.querySelector(`[aria-controls="${button.closest("[id]").id}"]`);
     setTextStyleMenu(trigger, false);
     trigger.focus();
   } else if (button.dataset.textColor) {
     const path = button.dataset.textColor;
     const style = modelAt(path);
     const label = path === "label";
+    const triggerClass = button.classList.contains("metadata-label-color") ? ".metadata-label-color" : ":not(.metadata-label-color)";
     colorDialog.open(button, {
       title: label ? "Метка" : "Текст",
       palette: textColorPalettes[label ? "label" : "text"],
       value: { color: style.color, alpha: style.colorAlpha ?? 100 },
       onConfirm: ({ color, alpha }) => {
         Object.assign(style, { color, colorAlpha: alpha });
-        showSettings(`[data-text-color="${path}"]`);
+        showSettings(`[data-text-color="${path}"]${triggerClass}`);
         updatePreview();
       },
     });
@@ -961,17 +1284,14 @@ stage.addEventListener("click", event => {
     showSettings(".alignment-trigger");
   } else if (button.dataset.textPreset) {
     const key = button.dataset.textPreset;
-    const { fontSize, fontWeight, italic } = textStylePresets[key];
     const picker = button.closest("[data-text-style-path]");
     const style = modelAt(picker.dataset.textStylePath);
     const menuId = picker.querySelector("[data-text-styles]").getAttribute("aria-controls");
-    Object.assign(style, typography(style.color), { textPreset: key, fontSize, fontWeight, italic });
+    applyTextPreset(style, key);
     showSettings(`[aria-controls="${menuId}"]`);
   } else if (button.dataset.preset) {
-    if (widget.preset !== button.dataset.preset) {
-      widget.preset = button.dataset.preset;
-      applyPreset(widget.preset);
-    }
+    widget.preset = button.dataset.preset;
+    applyPreset(widget.preset);
     showSettings('[aria-controls="field-preset-menu"]');
   } else if ("menuToggle" in button.dataset) {
     ui.menu = ui.menu ? "" : "add";
@@ -982,11 +1302,14 @@ stage.addEventListener("click", event => {
     const option = button.dataset.add;
     if (option === "limits") {
       content.querySelector("#limits-menu button").focus();
+    } else if (option === "appearance" && separateAppearance) {
+      content.querySelector("#appearance-submenu button").focus();
     } else {
       ui.added.add(option);
       ui.menu = "";
-      const model = optionalTextFields[option]?.path || { length: "limitLength", pattern: "limitPattern" }[option];
-      showSettings(model ? `[data-model="${model}"]` : "[data-menu-toggle]");
+      const model = metadataTextFields[option]?.path || { length: "limitLength", pattern: "limitPattern" }[option];
+      const focusTarget = { appearance: "[data-remove-appearance]", variable: "[data-toggle-name]" }[option];
+      showSettings(model ? `[data-model="${model}"]` : focusTarget || "[data-menu-toggle]");
     }
   }
   updatePreview();
@@ -996,6 +1319,16 @@ function setTextStyleMenu(trigger, open) {
   document.getElementById(trigger.getAttribute("aria-controls")).hidden = !open;
   trigger.setAttribute("aria-expanded", String(open));
   if (open && trigger.classList.contains("metadata-text-icon")) positionLabelPlacementMenu();
+  if (open && trigger.classList.contains("appearance-command")) positionAppearanceMenu();
+}
+
+function positionAppearanceMenu() {
+  const menu = content.querySelector("#appearance-menu:not([hidden])");
+  if (!menu) return;
+  menu.style.removeProperty("--menu-shift");
+  const bounds = menu.getBoundingClientRect();
+  const shift = Math.min(Math.max(8 - bounds.left, 0), document.documentElement.clientWidth - bounds.right - 22);
+  menu.style.setProperty("--menu-shift", shift + "px");
 }
 
 function positionLabelPlacementMenu() {
@@ -1008,17 +1341,23 @@ function positionLabelPlacementMenu() {
   menu.style.setProperty("--menu-shift", shift + "px");
 }
 
-function positionLimitsMenu() {
+function positionAddMenu() {
   const menu = content.querySelector("#add-menu");
   if (!menu) return;
+  menu.style.removeProperty("--menu-shift");
+  const viewportWidth = document.documentElement.clientWidth;
+  const preferred = menu.getBoundingClientRect();
+  const shift = Math.min(Math.max(8 - preferred.left, 0), viewportWidth - preferred.right - 8);
+  menu.style.setProperty("--menu-shift", shift + "px");
   const bounds = menu.getBoundingClientRect();
   const space = 248;
-  menu.dataset.submenuSide = document.documentElement.clientWidth - bounds.right >= space
+  menu.dataset.submenuSide = viewportWidth - bounds.right >= space
     ? "right" : bounds.left >= space ? "left" : "below";
 }
 
-window.addEventListener("resize", positionLimitsMenu);
+window.addEventListener("resize", positionAddMenu);
 window.addEventListener("resize", positionLabelPlacementMenu);
+window.addEventListener("resize", positionAppearanceMenu);
 
 function closeFooterMenu(restoreFocus) {
   ui.menu = "";
@@ -1026,7 +1365,7 @@ function closeFooterMenu(restoreFocus) {
 }
 
 document.addEventListener("pointerdown", event => {
-  const editorTrigger = content.querySelector(':is(.font-picker-trigger,.alignment-trigger,.metadata-text-icon)[aria-expanded="true"]');
+  const editorTrigger = content.querySelector(':is(.font-picker-trigger,.alignment-trigger,.metadata-text-icon,.appearance-command)[aria-expanded="true"]');
   if (editorTrigger && !editorTrigger.parentElement.contains(event.target)) setTextStyleMenu(editorTrigger, false);
   if (!ui.menu || event.target.closest(".add-menu-anchor")) return;
   ui.menu = "";
@@ -1044,7 +1383,7 @@ document.addEventListener("keydown", event => {
     return;
   }
   if (event.key === "Escape") {
-    const editorTrigger = content.querySelector(':is(.font-picker-trigger,.alignment-trigger,.metadata-text-icon)[aria-expanded="true"]');
+    const editorTrigger = content.querySelector(':is(.font-picker-trigger,.alignment-trigger,.metadata-text-icon,.appearance-command)[aria-expanded="true"]');
     if (editorTrigger) {
       setTextStyleMenu(editorTrigger, false);
       editorTrigger.focus();
