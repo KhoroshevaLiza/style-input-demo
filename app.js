@@ -112,12 +112,12 @@ const footerOptions = [
   ["variable", "Переменная", 20, 9],
   ["description", "Описание", 20, 20],
   ["visibility", "Видимость", 20, 19],
-  ["appearance", "Оформление", 18, 20],
   ["validation", "Валидация"],
   ["hint", "Подсказка", 20, 15],
   ["limits", "Ограничения", 18, 18],
   ["multiline", "Многострочное", 20, 15],
   ["required", "Заполнять обязательно"],
+  ["appearance", "Оформление", 18, 20],
 ];
 const activeFooterCommands = ["variable", "appearance", "hint"];
 const appearanceParts = ["field", "size", "label"];
@@ -320,7 +320,7 @@ function metadataTextRow(id) {
     <span class="metadata-text-control${id === "label" ? " with-icon" : ""}"${id === "label" ? ` style="--label-text-color:${colorFill(widget.label.color, widget.label.colorAlpha ?? 100)}"` : ""}>
       ${textInput(path, label, title)}
       ${caption ? `<span class="metadata-text-caption" aria-hidden="true">${caption}</span>` : ""}
-      ${id === "label" && !hasAppearancePart("label") ? textColorButton("label", "metadata-label-color") : ""}
+      ${id === "label" && !systemViewInputs[0].checked && !hasAppearancePart("label") ? textColorButton("label", "metadata-label-color") : ""}
       ${id === "label" ? labelPlacementPicker() : ""}
     </span>
     ${remove ? `<button class="border-reset metadata-text-reset" type="button" data-remove-text="${id}" aria-label="${remove}"><img src="assets/border-reset.svg" width="9" height="9" alt=""></button>` : ""}
