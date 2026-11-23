@@ -372,23 +372,21 @@ button.text-style-option:focus-visible { background: #f3f4f8; }
   .text-style-menu { width: min(300px, calc(100vw - 80px)); }
 }
 .commands { display: flex; gap: 8px; margin: 6px 12px; }
-.appearance-command-anchor { position: relative; display: grid; }
-.appearance-command-anchor .appearance-menu {
+.footer-popup-anchor { position: relative; display: grid; }
+.footer-popup-anchor .footer-popup {
   z-index: 6; top: -8px; left: calc(-15px + var(--menu-shift, 0px)); margin-top: 0;
   width: 160px; padding: 8px 8px 12px; border-radius: 8px;
 }
-.appearance-menu .add-menu-header { letter-spacing: 1.25px; }
-.appearance-submenu .limits-menu-panel { width: 120px; padding-block: 12px; }
-.appearance-submenu { top: -12px; margin-left: -2px; padding-left: 0; }
-[data-submenu-side="left"] .appearance-submenu { margin-left: 0; }
-[data-submenu-side="below"] .appearance-submenu { margin-left: 0; }
+.footer-popup .add-menu-header { letter-spacing: 1.25px; }
+.footer-popup-anchor #footer-limits-menu { width: 240px; }
+.appearance-submenu .limits-menu-panel { padding-block: 12px; }
 .command { width: 28px; height: 28px; background: #fff; }
 .command:hover, .command:focus-visible { background: #fff; box-shadow: inset 0 0 0 1px #d0d0d0; }
 .command img, .menu-icon img { display: block; }
 .add-menu-anchor { position: relative; display: grid; }
 .add-menu {
   position: absolute; z-index: 2; top: -8px; left: calc(-15px + var(--menu-shift, 0px));
-  width: min(270px, calc(100vw - 16px));
+  width: max-content; min-width: min(210px, calc(100vw - 16px)); max-width: calc(100vw - 16px);
   padding: 8px; background: #fff; border-radius: 6px;
   box-shadow: 0 0 18px #0003;
 }
@@ -423,14 +421,16 @@ button.text-style-option:focus-visible { background: #f3f4f8; }
   vertical-align: 2px; border-radius: 50%; background: #66cccc;
 }
 .limits-option { position: relative; }
-.limits-menu { display: none; position: absolute; top: -8px; left: 100%; z-index: 1; padding-left: 6px; }
+.limits-menu { display: none; position: absolute; top: -8px; left: 100%; z-index: 1; padding-left: 8px; }
+.limits-menu.appearance-submenu { top: -12px; }
 .limits-option:hover > .limits-menu, .limits-option:focus-within > .limits-menu { display: block; }
 .limits-menu-panel {
-  display: grid; gap: 6px; width: 240px; padding: 8px;
+  display: grid; gap: 6px; width: max-content; padding: 8px;
   background: #fff; border-radius: 8px; box-shadow: 0 0 18px #0003;
 }
-[data-submenu-side="left"] .limits-menu { left: auto; right: 100%; padding: 0 6px 0 0; }
-[data-submenu-side="below"] .limits-menu { left: 0; top: 100%; padding: 2px 0 0; }
+[data-submenu-side="left"] .limits-menu { left: auto; right: 100%; padding: 0 8px 0 0; }
+[data-submenu-side="below"] .limits-menu { left: -8px; top: 100%; padding: calc(var(--submenu-below-offset) - 32px) 0 0; }
+[data-submenu-side="below"] .limits-menu.appearance-submenu { top: 100%; }
 .added-options { display: grid; }
 .added-options .row:not(:has(.example-number)) { column-gap: 2px; }
 .added-options .row:has(.example-number) .example-close { margin-left: -4px; }

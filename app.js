@@ -5,7 +5,7 @@ const states = [
   ["hover", "При наведении"],
   ["active", "Активный"],
 ];
-const views = { main: "Текст", field: "Поле", label: "Метка", size: "Размер" };
+const views = { main: "Текст", field: "Область ввода", label: "Метка", size: "Размер" };
 const defaultSize = { width: 316, height: 24 };
 const contentWidth = 207;
 const textStylePresets = {
@@ -110,18 +110,15 @@ const shadowParameters = [
 let shadowDraft = null;
 const footerOptions = [
   ["variable", "Переменная", 20, 9],
-  ["description", "Описание", 20, 20],
-  ["visibility", "Видимость", 20, 19],
-  ["validation", "Валидация"],
-  ["hint", "Подсказка", 20, 15],
   ["limits", "Ограничения", 18, 18],
-  ["multiline", "Многострочное", 20, 15],
-  ["required", "Заполнять обязательно"],
   ["appearance", "Оформление", 18, 20],
+  ["visibility", "Видимость", 20, 19],
+  ["hint", "Подсказка", 20, 15],
+  ["description", "Описание", 20, 20],
 ];
 const activeFooterCommands = ["variable", "appearance", "hint"];
 const appearanceParts = ["field", "size", "label"];
-let separateAppearance = false;
+let separateAppearance = document.querySelector('input[name="appearance-mode"]:checked')?.value === "separate";
 const visualCommandIds = ["description", "visibility", "validation", "multiline", "required"];
 const metadataTextFields = {
   defaultValue: { path: "defaultValue", title: "Значение по умолчанию", label: "Значение по умолчанию", caption: "по умолчанию" },
@@ -250,7 +247,7 @@ function appearanceShortcut() {
   if (remaining.length !== 1) return null;
   const [part] = remaining;
   const options = {
-    field: ["appearance", "Оформление поля", 18, 20],
+    field: ["appearance", "Оформление области ввода", 18, 20],
     size: ["appearance-size", "Размер", 18, 18],
     label: ["appearance", "Оформление метки", 18, 20],
   };
@@ -267,12 +264,23 @@ function appearanceCommand(option) {
   if (shortcut) {
     return `<button class="command appearance-command" type="button" data-appearance-part="${shortcut.part}" aria-label="${shortcut.option[1]}">${footerIcon(shortcut.option)}</button>`;
   }
-  return `<span class="appearance-command-anchor">
-    <button class="command appearance-command" type="button" data-text-styles aria-label="Оформление" aria-controls="appearance-menu" aria-expanded="false">${footerIcon(option)}</button>
-    <span class="text-style-menu appearance-menu" id="appearance-menu" role="group" aria-labelledby="appearance-menu-title" hidden>
-      <span class="add-menu-header" id="appearance-menu-title">Оформление</span>
-      <span class="add-menu-items">${appearanceMenuItems()}</span>
-      <button class="text-style-close" type="button" data-close-text-styles aria-label="Закрыть меню оформления"><img src="assets/close.svg" width="12" height="12" alt=""></button>
+  return footerPopup(option, appearanceMenuItems(), "Закрыть меню оформления");
+}
+
+function limitsMenuItems() {
+  return ["Заполнять обязательно", "Многострочное", "Количество символов", "Вводимые символы", "Валидация"]
+    .map(title => `<button class="add-menu-item" type="button" aria-disabled="true">${title}</button>`).join("");
+}
+
+function footerPopup(option, items, closeLabel) {
+  const [id, title] = option;
+  const menuId = id === "limits" ? "footer-limits-menu" : "appearance-menu";
+  return `<span class="footer-popup-anchor">
+    <button class="command ${id}-command" type="button" data-text-styles aria-label="${title}" aria-controls="${menuId}" aria-expanded="false">${footerIcon(option)}</button>
+    <span class="text-style-menu footer-popup" id="${menuId}" role="group" aria-labelledby="${menuId}-title" hidden>
+      <span class="add-menu-header" id="${menuId}-title">${title}</span>
+      <span class="add-menu-items">${items}</span>
+      <button class="text-style-close" type="button" data-close-text-styles aria-label="${closeLabel}"><img src="assets/close.svg" width="12" height="12" alt=""></button>
     </span>
   </span>`;
 }
@@ -352,10 +360,7 @@ function footerMenu() {
       </div>`;
       return hasSubmenu ? `<div class="limits-option">${item}
         <div class="limits-menu" id="limits-menu" role="group" aria-label="Ограничения">
-          <div class="limits-menu-panel">
-            <button class="add-menu-item" type="button" aria-disabled="true">Количество символов</button>
-            <button class="add-menu-item" type="button" aria-disabled="true">Вводимые символы</button>
-          </div>
+          <div class="limits-menu-panel">${limitsMenuItems()}</div>
         </div>
       </div>` : item;
     }).join("")}</div>
@@ -545,7 +550,8 @@ function mainView() {
   ${examplePropertyCard("validation", "Валидация", "Проверка заполнения данных поможет исключить ошибки")}
   ${appearanceCard()}
   ${availableFooterOptions().length ? `<div class="commands">
-    ${availableFooterOptions().slice(0, 4).map(option => option[0] === "appearance" && separateAppearance ? appearanceCommand(option) : activeFooterCommands.includes(option[0])
+    ${availableFooterOptions().slice(0, 4).map(option => option[0] === "limits" ? footerPopup(option, limitsMenuItems(), "Закрыть меню ограничений")
+      : option[0] === "appearance" && separateAppearance ? appearanceCommand(option) : activeFooterCommands.includes(option[0])
       ? `<button class="command" type="button" data-add="${option[0]}" aria-label="${option[1]}">${footerIcon(option)}</button>`
       : `<span class="command" title="${option[1]}" aria-hidden="true">${footerIcon(option)}</span>`).join("")}
     <div class="add-menu-anchor">
@@ -988,8 +994,7 @@ function loadSystemView(view) {
       ui.added.delete("appearance");
       for (const part of appearanceParts) ui.added.add(`appearance-${part}`);
     }
-    ui.added.add("length");
-    ui.added.add("pattern");
+    for (const id of ["required", "length", "pattern", "validation", "multiline"]) ui.added.add(id);
     Object.assign(widget, {
       name: "Организация.Название",
       defaultValue: "Микропредприятие",
@@ -1321,11 +1326,11 @@ function setTextStyleMenu(trigger, open) {
   document.getElementById(trigger.getAttribute("aria-controls")).hidden = !open;
   trigger.setAttribute("aria-expanded", String(open));
   if (open && trigger.classList.contains("metadata-text-icon")) positionLabelPlacementMenu();
-  if (open && trigger.classList.contains("appearance-command")) positionAppearanceMenu();
+  if (open && trigger.closest(".footer-popup-anchor")) positionFooterPopup();
 }
 
-function positionAppearanceMenu() {
-  const menu = content.querySelector("#appearance-menu:not([hidden])");
+function positionFooterPopup() {
+  const menu = content.querySelector(".footer-popup:not([hidden])");
   if (!menu) return;
   menu.style.removeProperty("--menu-shift");
   const bounds = menu.getBoundingClientRect();
@@ -1352,14 +1357,19 @@ function positionAddMenu() {
   const shift = Math.min(Math.max(8 - preferred.left, 0), viewportWidth - preferred.right - 8);
   menu.style.setProperty("--menu-shift", shift + "px");
   const bounds = menu.getBoundingClientRect();
-  const space = 248;
+  const space = 240;
   menu.dataset.submenuSide = viewportWidth - bounds.right >= space
     ? "right" : bounds.left >= space ? "left" : "below";
+  if (menu.dataset.submenuSide === "below") {
+    for (const row of menu.querySelectorAll(".limits-option")) {
+      row.style.setProperty("--submenu-below-offset", `${bounds.bottom - row.getBoundingClientRect().top}px`);
+    }
+  }
 }
 
 window.addEventListener("resize", positionAddMenu);
 window.addEventListener("resize", positionLabelPlacementMenu);
-window.addEventListener("resize", positionAppearanceMenu);
+window.addEventListener("resize", positionFooterPopup);
 
 function closeFooterMenu(restoreFocus) {
   ui.menu = "";
@@ -1367,7 +1377,7 @@ function closeFooterMenu(restoreFocus) {
 }
 
 document.addEventListener("pointerdown", event => {
-  const editorTrigger = content.querySelector(':is(.font-picker-trigger,.alignment-trigger,.metadata-text-icon,.appearance-command)[aria-expanded="true"]');
+  const editorTrigger = content.querySelector(':is(.font-picker-trigger,.alignment-trigger,.metadata-text-icon,.footer-popup-anchor > button)[aria-expanded="true"]');
   if (editorTrigger && !editorTrigger.parentElement.contains(event.target)) setTextStyleMenu(editorTrigger, false);
   if (!ui.menu || event.target.closest(".add-menu-anchor")) return;
   ui.menu = "";
@@ -1385,7 +1395,7 @@ document.addEventListener("keydown", event => {
     return;
   }
   if (event.key === "Escape") {
-    const editorTrigger = content.querySelector(':is(.font-picker-trigger,.alignment-trigger,.metadata-text-icon,.appearance-command)[aria-expanded="true"]');
+    const editorTrigger = content.querySelector(':is(.font-picker-trigger,.alignment-trigger,.metadata-text-icon,.footer-popup-anchor > button)[aria-expanded="true"]');
     if (editorTrigger) {
       setTextStyleMenu(editorTrigger, false);
       editorTrigger.focus();
