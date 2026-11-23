@@ -134,6 +134,7 @@ const preview = document.querySelector("#widget-preview");
 const previewFrame = document.querySelector(".widget-frame");
 const previewLabel = document.querySelector("#preview-label");
 const previewText = document.querySelector("#preview-text");
+const previewInputWrap = previewText.parentElement;
 
 function escapeHtml(value) {
   return String(value).replaceAll("&", "&amp;").replaceAll('"', "&quot;")
@@ -476,15 +477,16 @@ function fieldOverrides() {
 
 function fieldPresetPicker() {
   const { color, colorAlpha = 100 } = widget.styles.rest;
+  const changes = fieldOverrides();
   return `<span class="field-style-with-overrides"><span class="style-picker-shell" data-field-preset="${widget.preset}" style="color:${colorFill(color, colorAlpha)}">
     <button class="style-picker" type="button" data-text-styles aria-expanded="false" aria-controls="field-preset-menu">${fieldPresets[widget.preset]}</button>
     <span class="field-preset-menu" id="field-preset-menu" role="group" aria-label="Стиль поля" hidden>
       ${Object.entries(fieldPresets).map(([id, title]) => `
-        <button class="field-preset-option" type="button" data-preset="${id}" aria-pressed="${id === widget.preset}"><span>${title}</span></button>
+        <button class="field-preset-option" type="button" data-preset="${id}" aria-pressed="${id === widget.preset}"><span class="field-preset-title">${title}</span>${id === widget.preset && changes.length ? '<span class="text-style-override-note">Стиль изменен <i aria-hidden="true">&#xe64b;</i></span>' : ""}</button>
       `).join("")}
       <button class="text-style-close" type="button" data-close-text-styles aria-label="Закрыть меню стиля"><img src="assets/close.svg" width="12" height="12" alt=""></button>
     </span>
-  </span>${overrideNotice(fieldOverrides(), "field-preset", true)}</span>`;
+  </span>${overrideNotice(changes, "field-preset", true)}</span>`;
 }
 
 const sizeStepButtons = `
@@ -840,7 +842,6 @@ function updatePreview() {
   const style = widget.styles[state];
   const { size, label } = widget;
   const required = ui.added.has("required");
-  const moveBottomBorder = required || (label.placement === "left" && Boolean(label.text));
   const [outerTop, outerRight, outerBottom, outerLeft] = spacingSides(size.outer);
   const [innerTop, innerRight, innerBottom, innerLeft] = spacingSides(size.inner);
   const dimensions = previewDimensions();
@@ -864,24 +865,17 @@ function updatePreview() {
   previewFrame.style.paddingInline = `${innerLeft}px ${innerRight}px`;
   preview.style.alignItems = size.vertical === "default" ? "center" : size.vertical;
   preview.style.gap = label.gap + "px";
-  preview.style.borderRadius = style.radiusMode === "corners"
+  previewInputWrap.style.borderRadius = style.radiusMode === "corners"
     ? style.cornerRadii.map(radius => radius + "px").join(" ")
     : style.radius + "px";
-  preview.style.borderStyle = style.borderLine;
-  const borderColor = colorFill(style.borderColor, style.borderAlpha);
-  preview.style.borderColor = borderColor;
-  preview.style.borderWidth = !style.borderColor ? "0px" : style.borderMode === "sides"
+  previewInputWrap.style.borderStyle = style.borderLine;
+  previewInputWrap.style.borderColor = colorFill(style.borderColor, style.borderAlpha);
+  previewInputWrap.style.borderWidth = !style.borderColor ? "0px" : style.borderMode === "sides"
     ? style.borders.map(width => width + "px").join(" ") : style.borderWidth + "px";
-  preview.classList.toggle("preview-border-under-input", moveBottomBorder);
-  if (moveBottomBorder) {
-    const width = style.borderColor ? (style.borderMode === "sides" ? style.borders[2] : style.borderWidth) : 0;
-    preview.style.borderBottomWidth = "0";
-    preview.style.setProperty("--preview-input-border-width", `${width}px`);
-    preview.style.setProperty("--preview-input-border", `${width}px ${style.borderLine} ${borderColor}`);
-  }
-  preview.style.background = colorFill(style.background, style.backgroundAlpha);
+  previewInputWrap.style.setProperty("--preview-input-border-width", previewInputWrap.style.borderBottomWidth);
+  previewInputWrap.style.background = colorFill(style.background, style.backgroundAlpha);
   const shadow = ui.view === "field" && shadowDraft ? shadowDraft : style.shadow;
-  preview.style.boxShadow = shadow
+  previewInputWrap.style.boxShadow = shadow
     ? `${shadow.x}px ${shadow.y}px ${shadow.blur}px ${shadow.spread}px ${colorFill(shadow.color, shadow.alpha)}`
     : "none";
   preview.dataset.state = state;

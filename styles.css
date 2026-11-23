@@ -89,17 +89,11 @@ label.system-option { position: relative; cursor: pointer; }
 .widget-frame::after { position: absolute; z-index: 2; content: ""; inset: -1px; border: 1px solid var(--selection); border-radius: 2px; pointer-events: none; }
 .widget-preview {
   display: flex; gap: 8px; align-items: center; width: 100%; height: 100%;
-  overflow: hidden; border-radius: 2px;
 }
 .widget-content { display: flex; align-items: inherit; gap: inherit; flex: 1; min-width: 0; height: 100%; }
 .preview-input-wrap { position: relative; display: flex; align-items: inherit; flex: 1; min-width: 0; height: 100%; }
-.preview-border-under-input { padding-bottom: var(--preview-input-border-width); }
-.preview-border-under-input .preview-input-wrap { --preview-line-bottom: calc(-1 * var(--preview-input-border-width)); }
-.preview-border-under-input .preview-input-wrap::before {
-  content: ""; position: absolute; inset: auto 0 var(--preview-line-bottom); border-bottom: var(--preview-input-border); pointer-events: none;
-}
 .preview-input-wrap:has(> input:required)::after {
-  content: ""; position: absolute; left: 0; bottom: calc(var(--preview-line-bottom, 0px) - 1px);
+  content: ""; position: absolute; left: 0; bottom: calc(-1.5px - var(--preview-input-border-width, 0px) / 2);
   width: 15px; height: 3px; pointer-events: none;
   background: radial-gradient(ellipse 10px 2.17px at 5px 50%, #f86a62, #fa8f89bf 20%, #fcb5b180 40%, #fff0 80%);
 }
@@ -237,12 +231,15 @@ select { cursor: pointer; }
   padding: 0 14px 0 26px; border-radius: 8px; text-align: left; letter-spacing: inherit;
 }
 .field-preset-option:hover, .field-preset-option:focus-visible { background: #e9ebec; }
-.field-preset-option span { width: 100%; padding: 0 4px; line-height: 23px; background: white; border-bottom: 1px solid white; }
-.field-preset-option[aria-pressed="true"] span { background: transparent; border-bottom-color: var(--line); }
+.field-preset-title { width: 100%; padding: 0 4px; line-height: 23px; background: white; border-bottom: 1px solid white; }
+.field-preset-option[data-preset="transparent"] .field-preset-title { background: transparent; border-bottom-color: var(--line); }
+.field-preset-option:has(.text-style-override-note) { flex-direction: column; align-items: stretch; justify-content: center; height: 48px; }
+.field-preset-option .text-style-override-note { margin: 4px 0 0 4px; }
 .field-preset-option[aria-pressed="true"]::before, .field-preset-option:hover::before {
   position: absolute; content: ""; left: 11px; top: 13px; width: 6px; height: 6px; border-radius: 50%; background: white;
 }
 .field-preset-option[aria-pressed="true"]::before { background: #cc3d00; }
+.field-preset-option:has(.text-style-override-note)::before { top: 21px; }
 .field-name { min-height: 25px; font-size: 16px; }
 .name-row {
   display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; height: 24px; padding: 0;
@@ -293,7 +290,7 @@ button:hover { background-color: #e9ebef; }
 .font-overrides { position: relative; display: inline-flex; align-items: flex-start; width: 10px; }
 .window-content:has(:is(.text-style-link, .style-picker)[aria-expanded="true"]) .font-overrides { visibility: hidden; }
 .field-style-with-overrides { display: inline-flex; }
-.field-overrides { margin-left: -8px; }
+.field-overrides { top: -1px; margin-left: -10px; }
 .field-overrides .font-overrides-panel { width: max-content; min-width: 210px; max-width: 330px; color: #000; }
 .font-overrides-trigger {
   position: relative; width: 10px; height: 10px; padding: 0; background: #e6a119;
