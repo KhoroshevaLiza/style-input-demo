@@ -81,7 +81,7 @@ function createWidget(type) {
     type,
     name: "",
     defaultValue: "",
-    label: { text: "", placement: "none", gap: 8, ...typography("#8991a9") },
+    label: { text: "", placement: "left", gap: 8, ...typography("#8991a9") },
     placeholder: "",
     limitLength: "",
     limitPattern: "",
@@ -111,8 +111,8 @@ let shadowDraft = null;
 const footerOptions = [
   ["variable", "Переменная", 20, 9],
   ["description", "Описание", 20, 20],
-  ["appearance", "Оформление", 18, 20],
   ["visibility", "Видимость", 20, 19],
+  ["appearance", "Оформление", 18, 20],
   ["validation", "Валидация"],
   ["hint", "Подсказка", 20, 15],
   ["limits", "Ограничения", 18, 18],
@@ -277,7 +277,7 @@ function appearanceCommand(option) {
 }
 
 function canShowHint() {
-  return widget.label.placement !== "small-above";
+  return widget.label.placement === "left" || widget.label.placement === "above";
 }
 
 const labelPlacements = [
@@ -343,7 +343,7 @@ function footerMenu() {
         : visualCommandIds.includes(id) ? 'aria-disabled="true"' : `data-add="${id}"`;
       const item = `<button class="add-menu-item" type="button" ${action}${hasSubmenu ? ` aria-controls="${id === "limits" ? "limits-menu" : submenuId}"` : ""}>
         <span class="menu-icon" aria-hidden="true">${footerIcon(displayed)}</span>
-        <span>${displayed[1]}</span>${hasSubmenu ? '<img class="menu-chevron" src="assets/footer-chevron.svg" width="7" height="12" alt="">' : ""}
+        <span${activeFooterCommands.includes(id) ? ' class="clickable-menu-label"' : ""}>${displayed[1]}</span>${hasSubmenu ? '<img class="menu-chevron" src="assets/footer-chevron.svg" width="7" height="12" alt="">' : ""}
       </button>`;
       if (id === "appearance" && hasSubmenu) return `<div class="limits-option">${item}
         <div class="limits-menu appearance-submenu" id="${submenuId}" role="group" aria-label="Свойства оформления">
@@ -840,6 +840,8 @@ function updatePreview() {
   const state = ui.view === "field" ? ui.state : "rest";
   const style = widget.styles[state];
   const { size, label } = widget;
+  const required = ui.added.has("required");
+  const moveBottomBorder = required || (label.placement === "left" && Boolean(label.text));
   const [outerTop, outerRight, outerBottom, outerLeft] = spacingSides(size.outer);
   const [innerTop, innerRight, innerBottom, innerLeft] = spacingSides(size.inner);
   const dimensions = previewDimensions();
@@ -867,9 +869,17 @@ function updatePreview() {
     ? style.cornerRadii.map(radius => radius + "px").join(" ")
     : style.radius + "px";
   preview.style.borderStyle = style.borderLine;
-  preview.style.borderColor = colorFill(style.borderColor, style.borderAlpha);
+  const borderColor = colorFill(style.borderColor, style.borderAlpha);
+  preview.style.borderColor = borderColor;
   preview.style.borderWidth = !style.borderColor ? "0px" : style.borderMode === "sides"
     ? style.borders.map(width => width + "px").join(" ") : style.borderWidth + "px";
+  preview.classList.toggle("preview-border-under-input", moveBottomBorder);
+  if (moveBottomBorder) {
+    const width = style.borderColor ? (style.borderMode === "sides" ? style.borders[2] : style.borderWidth) : 0;
+    preview.style.borderBottomWidth = "0";
+    preview.style.setProperty("--preview-input-border-width", `${width}px`);
+    preview.style.setProperty("--preview-input-border", `${width}px ${style.borderLine} ${borderColor}`);
+  }
   preview.style.background = colorFill(style.background, style.backgroundAlpha);
   const shadow = ui.view === "field" && shadowDraft ? shadowDraft : style.shadow;
   preview.style.boxShadow = shadow
@@ -879,7 +889,7 @@ function updatePreview() {
   preview.setAttribute("aria-label", widget.name || "Предпросмотр текстового поля");
   const floatingLabel = label.placement === "small-above";
   previewFrame.dataset.placement = label.placement;
-  const labelContainer = labelHeight ? previewFrame : previewText.parentElement;
+  const labelContainer = labelHeight ? previewFrame : previewText.closest(".widget-content");
   if (previewLabel.parentElement !== labelContainer) labelContainer.prepend(previewLabel);
   previewLabel.textContent = label.text;
   previewLabel.hidden = !label.text || label.placement === "none";
@@ -887,6 +897,7 @@ function updatePreview() {
   const placeholder = (canShowHint() && widget.placeholder) || defaultPlaceholder;
   const showNameAsPlaceholder = floatingLabel || label.placement === "none";
   previewText.placeholder = (showNameAsPlaceholder && label.text) || placeholder;
+  previewText.required = required;
   previewText.style.setProperty("--preview-placeholder-color", colorFill(label.color, 60));
   previewText.setAttribute("aria-label", label.text || widget.name || "Предпросмотр текстового поля");
   const [, insetRight, , insetLeft] = spacingSides(size.inset);
@@ -976,7 +987,6 @@ function loadSystemView(view) {
   colorDialog.close();
   shadowDraft = null;
   widget = createWidget(widget.type);
-  previewText.value = "";
   Object.assign(ui, { view: "main", state: "rest", menu: "" });
   ui.added.clear();
   if (view === "maximum") {
@@ -996,6 +1006,7 @@ function loadSystemView(view) {
     });
     Object.assign(widget.label, { text: "Примечание", placement: "left" });
   }
+  previewText.value = widget.defaultValue;
   for (const input of systemViewInputs) input.checked = input.value === view;
   showSettings();
   updatePreview();
