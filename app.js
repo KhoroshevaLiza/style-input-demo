@@ -320,7 +320,6 @@ function metadataTextRow(id) {
     <span class="metadata-text-control${id === "label" ? " with-icon" : ""}"${id === "label" ? ` style="--label-text-color:${colorFill(widget.label.color, widget.label.colorAlpha ?? 100)}"` : ""}>
       ${textInput(path, label, title)}
       ${caption ? `<span class="metadata-text-caption" aria-hidden="true">${caption}</span>` : ""}
-      ${id === "label" && !systemViewInputs[0].checked && !hasAppearancePart("label") ? textColorButton("label", "metadata-label-color") : ""}
       ${id === "label" ? labelPlacementPicker() : ""}
     </span>
     ${remove ? `<button class="border-reset metadata-text-reset" type="button" data-remove-text="${id}" aria-label="${remove}"><img src="assets/border-reset.svg" width="9" height="9" alt=""></button>` : ""}
@@ -584,10 +583,10 @@ function colorSettingSwatch(color, alpha) {
   return `<span class="swatch color-swatch translucent-color" style="--opaque-color:${color};--translucent-color:${colorFill(color, alpha)}" aria-hidden="true"></span>`;
 }
 
-function textColorButton(path, className = "") {
+function textColorButton(path) {
   const { color, colorAlpha = 100 } = modelAt(path);
   const label = path === "label" ? "Цвет метки" : "Цвет текста";
-  return `<button class="field-color-trigger ${className}" type="button" data-text-color="${path}"
+  return `<button class="field-color-trigger" type="button" data-text-color="${path}"
     aria-haspopup="dialog" aria-label="${label}" title="${color.toUpperCase()}">${colorSettingSwatch(color, colorAlpha)}</button>`;
 }
 
@@ -1039,9 +1038,8 @@ function resetAppearancePart(part, defaults) {
   } else if (part === "size") {
     widget.size = defaults.size;
   } else {
-    const { text, placement, color, colorAlpha } = widget.label;
-    widget.label = { ...defaults.label, text, placement, color };
-    if (colorAlpha !== undefined) widget.label.colorAlpha = colorAlpha;
+    const { text, placement } = widget.label;
+    widget.label = { ...defaults.label, text, placement };
   }
 }
 
@@ -1204,14 +1202,13 @@ stage.addEventListener("click", event => {
     const path = button.dataset.textColor;
     const style = modelAt(path);
     const label = path === "label";
-    const triggerClass = button.classList.contains("metadata-label-color") ? ".metadata-label-color" : ":not(.metadata-label-color)";
     colorDialog.open(button, {
       title: label ? "Метка" : "Текст",
       palette: textColorPalettes[label ? "label" : "text"],
       value: { color: style.color, alpha: style.colorAlpha ?? 100 },
       onConfirm: ({ color, alpha }) => {
         Object.assign(style, { color, colorAlpha: alpha });
-        showSettings(`[data-text-color="${path}"]${triggerClass}`);
+        showSettings(`[data-text-color="${path}"]`);
         updatePreview();
       },
     });
