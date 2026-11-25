@@ -113,6 +113,7 @@ const footerOptions = [
   ["limits", "Ограничения", 18, 18],
   ["appearance", "Оформление", 18, 20],
   ["visibility", "Видимость", 20, 19],
+  ["multiline", "Многострочное", 20, 15],
   ["hint", "Подсказка", 20, 15],
   ["description", "Описание", 20, 20],
 ];
@@ -225,10 +226,14 @@ function fontControls(path, alignment = false) {
   </div>`;
 }
 
+function inlineIcon(id, width, height, className = "inline-icon") {
+  return `<svg class="${className}" width="${width}" height="${height}" aria-hidden="true"><use href="#icon-${id}"></use></svg>`;
+}
+
 function footerIcon([id, , width, height]) {
   if (id === "validation") return '<span class="validation-icon">!</span>';
   if (id === "required") return "∗";
-  return `<img src="assets/footer-${id}.svg" width="${width}" height="${height}" alt="">`;
+  return inlineIcon("footer-" + id, width, height);
 }
 
 function availableFooterOptions() {
@@ -268,7 +273,7 @@ function appearanceCommand(option) {
 }
 
 function limitsMenuItems() {
-  return ["Заполнять обязательно", "Многострочное", "Количество символов", "Вводимые символы", "Валидация"]
+  return ["Заполнять обязательно", "Количество символов", "Вводимые символы", "Валидация"]
     .map(title => `<button class="add-menu-item" type="button" aria-disabled="true">${title}</button>`).join("");
 }
 
@@ -339,7 +344,7 @@ function footerMenu() {
   return `<div class="add-menu" id="add-menu" role="group" aria-labelledby="add-menu-title">
     <div class="add-menu-header">
       <span id="add-menu-title">Добавить</span>
-      <button class="add-menu-close" type="button" data-menu-close aria-label="Закрыть меню"><img src="assets/close.svg" width="12" height="12" alt=""></button>
+      <button class="add-menu-close" type="button" data-menu-close aria-label="Закрыть меню">${inlineIcon("close", 12, 12)}${inlineIcon("close-hover", 12, 12, "menu-close-hover")}</button>
     </div>
     <div class="add-menu-items">${availableFooterOptions().map(option => {
       const [id] = option;
@@ -351,7 +356,7 @@ function footerMenu() {
         : visualCommandIds.includes(id) ? 'aria-disabled="true"' : `data-add="${id}"`;
       const item = `<button class="add-menu-item" type="button" ${action}${hasSubmenu ? ` aria-controls="${id === "limits" ? "limits-menu" : submenuId}"` : ""}>
         <span class="menu-icon" aria-hidden="true">${footerIcon(displayed)}</span>
-        <span${activeFooterCommands.includes(id) ? ' class="clickable-menu-label"' : ""}>${displayed[1]}</span>${hasSubmenu ? '<img class="menu-chevron" src="assets/footer-chevron.svg" width="7" height="12" alt="">' : ""}
+        <span${activeFooterCommands.includes(id) ? ' class="clickable-menu-label"' : ""}>${displayed[1]}</span>${hasSubmenu ? inlineIcon("footer-chevron", 7, 12, "menu-chevron") : ""}
       </button>`;
       if (id === "appearance" && hasSubmenu) return `<div class="limits-option">${item}
         <div class="limits-menu appearance-submenu" id="${submenuId}" role="group" aria-label="Свойства оформления">
