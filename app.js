@@ -83,8 +83,8 @@ function createWidget(type) {
     defaultValue: "",
     label: { text: "", placement: "left", gap: 8, ...typography("#8991a9") },
     placeholder: "",
-    limitLength: "",
-    limitPattern: "",
+    limitLength: "10",
+    limitPattern: String.raw`/^(a-z0-9_\.-]+)@`,
     preset: "transparent",
     size: {
       width: null, height: null, heightHint: defaultSize.height, horizontal: "default", vertical: "default",
@@ -117,10 +117,14 @@ const footerOptions = [
   ["hint", "Подсказка", 20, 15],
   ["description", "Описание", 20, 20],
 ];
-const activeFooterCommands = ["variable", "appearance", "hint"];
+const limitOptions = [
+  ["required", "Заполнять обязательно"],
+  ["length", "Количество символов"],
+  ["pattern", "Вводимые символы"],
+  ["validation", "Валидация"],
+];
 const appearanceParts = ["field", "size", "label"];
 let separateAppearance = document.querySelector('input[name="appearance-mode"]:checked')?.value === "separate";
-const visualCommandIds = ["description", "visibility", "validation", "multiline", "required"];
 const metadataTextFields = {
   defaultValue: { path: "defaultValue", title: "Значение по умолчанию", label: "Значение по умолчанию", caption: "по умолчанию" },
   hint: { path: "placeholder", title: "Подсказка", label: "Подсказка", caption: "подсказка", remove: "Убрать подсказку" },
@@ -239,7 +243,8 @@ function footerIcon([id, , width, height]) {
 function availableFooterOptions() {
   return footerOptions.filter(([id]) =>
     (id !== "hint" || canShowHint()) && !ui.added.has(id) &&
-    (id !== "appearance" || !appearanceParts.every(hasAppearancePart)));
+    (id !== "appearance" || !appearanceParts.every(hasAppearancePart)) &&
+    (id !== "limits" || limitOptions.some(([key]) => !ui.added.has(key))));
 }
 
 function hasAppearancePart(part) {
@@ -264,24 +269,24 @@ function appearanceMenuItems() {
     `<button class="add-menu-item" type="button" data-appearance-part="${part}">${views[part]}</button>`).join("");
 }
 
-function appearanceCommand(option) {
+function appearanceCommand(option, labeled) {
   const shortcut = appearanceShortcut();
   if (shortcut) {
-    return `<button class="command appearance-command" type="button" data-appearance-part="${shortcut.part}" aria-label="${shortcut.option[1]}">${footerIcon(shortcut.option)}</button>`;
+    return `<button class="command appearance-command" type="button" data-appearance-part="${shortcut.part}" title="${shortcut.option[1]}" aria-label="${shortcut.option[1]}">${commandContent(shortcut.option, labeled)}</button>`;
   }
-  return footerPopup(option, appearanceMenuItems(), "Закрыть меню оформления");
+  return footerPopup(option, appearanceMenuItems(), "Закрыть меню оформления", labeled);
 }
 
 function limitsMenuItems() {
-  return ["Заполнять обязательно", "Количество символов", "Вводимые символы", "Валидация"]
-    .map(title => `<button class="add-menu-item" type="button" aria-disabled="true">${title}</button>`).join("");
+  return limitOptions.filter(([id]) => !ui.added.has(id))
+    .map(([id, title]) => `<button class="add-menu-item" type="button" data-add="${id}">${title}</button>`).join("");
 }
 
-function footerPopup(option, items, closeLabel) {
+function footerPopup(option, items, closeLabel, labeled) {
   const [id, title] = option;
   const menuId = id === "limits" ? "footer-limits-menu" : "appearance-menu";
   return `<span class="footer-popup-anchor">
-    <button class="command ${id}-command" type="button" data-text-styles aria-label="${title}" aria-controls="${menuId}" aria-expanded="false">${footerIcon(option)}</button>
+    <button class="command ${id}-command" type="button" data-text-styles title="${title}" aria-label="${title}" aria-controls="${menuId}" aria-expanded="false">${commandContent(option, labeled)}</button>
     <span class="text-style-menu footer-popup" id="${menuId}" role="group" aria-labelledby="${menuId}-title" hidden>
       <span class="add-menu-header" id="${menuId}-title">${title}</span>
       <span class="add-menu-items">${items}</span>
@@ -322,7 +327,7 @@ function labelPlacementPicker() {
         <button class="add-menu-close" type="button" data-close-text-styles aria-label="Закрыть меню расположения метки"><img src="assets/close.svg" width="12" height="12" alt=""></button>
       </span>
       <span class="text-style-options">${options.slice(0, 2).join("")}</span>
-      <span class="label-placement-heading">В поле</span>
+      <span class="label-placement-heading">В области ввода</span>
       <span class="text-style-options">${options.slice(2).join("")}</span>
     </span>
   </span>`;
@@ -353,10 +358,10 @@ function footerMenu() {
       const hasSubmenu = id === "limits" || (id === "appearance" && separateAppearance && !shortcut);
       const submenuId = `${id}-submenu`;
       const action = shortcut ? `data-appearance-part="${shortcut.part}"`
-        : visualCommandIds.includes(id) ? 'aria-disabled="true"' : `data-add="${id}"`;
+        : `data-add="${id}"`;
       const item = `<button class="add-menu-item" type="button" ${action}${hasSubmenu ? ` aria-controls="${id === "limits" ? "limits-menu" : submenuId}"` : ""}>
         <span class="menu-icon" aria-hidden="true">${footerIcon(displayed)}</span>
-        <span${activeFooterCommands.includes(id) ? ' class="clickable-menu-label"' : ""}>${displayed[1]}</span>${hasSubmenu ? inlineIcon("footer-chevron", 7, 12, "menu-chevron") : ""}
+        <span>${displayed[1]}</span>${hasSubmenu ? inlineIcon("footer-chevron", 7, 12, "menu-chevron") : ""}
       </button>`;
       if (id === "appearance" && hasSubmenu) return `<div class="limits-option">${item}
         <div class="limits-menu appearance-submenu" id="${submenuId}" role="group" aria-label="Свойства оформления">
@@ -505,10 +510,14 @@ const sizeStepButtons = `
 `;
 document.querySelector(".header-size").innerHTML = sizeStepButtons;
 
+function propertyReset(id, title) {
+  return `<button class="example-close" type="button" data-remove-property="${id}" aria-label="Убрать «${title}»">&#xe66c;</button>`;
+}
+
 function examplePropertyCard(id, title, hint) {
   if (!ui.added.has(id)) return "";
   return `<div class="card example-property">
-    <div class="example-property-title"><strong>${title}</strong><span class="example-close" aria-hidden="true">&#xe66c;</span></div>
+    <div class="example-property-title"><strong>${title}</strong>${propertyReset(id, title)}</div>
     <div class="example-property-body">${hint}${id !== "description" ? '<span class="example-formula-icon" aria-hidden="true">&#xe746;</span>' : ""}</div>
   </div>`;
 }
@@ -545,25 +554,57 @@ function mainView() {
     ${canShowHint() && ui.added.has("hint") ? metadataTextRow("hint") : ""}
   </div>
   ${["required", "multiline", "length", "pattern"].some(id => ui.added.has(id)) ? `<div class="card added-options">
-    ${ui.added.has("required") ? '<div class="row">Заполнять обязательно<span class="example-close" aria-hidden="true">&#xe66c;</span></div>' : ""}
-    ${ui.added.has("multiline") ? '<div class="row">Многострочное <span>от</span><span class="example-number">1</span><span>до</span><span class="example-number example-hint">auto</span><span>строк</span><span class="example-close" aria-hidden="true">&#xe66c;</span></div>' : ""}
-    ${ui.added.has("length") ? `<div class="row">Количество символов <span>до</span><span class="example-number">${widget.limitLength}</span><span class="example-close" aria-hidden="true">&#xe66c;</span></div>` : ""}
-    ${ui.added.has("pattern") ? `<div class="row">Регулярное выражение<span class="example-close" aria-hidden="true">&#xe66c;</span></div><div class="example-pattern example-hint">${escapeHtml(widget.limitPattern)}</div>` : ""}
+    ${ui.added.has("required") ? `<div class="row">Заполнять обязательно${propertyReset("required", "Заполнять обязательно")}</div>` : ""}
+    ${ui.added.has("multiline") ? `<div class="row">Многострочное <span>от</span><span class="example-number">1</span><span>до</span><span class="example-number example-hint">auto</span><span>строк</span>${propertyReset("multiline", "Многострочное")}</div>` : ""}
+    ${ui.added.has("length") ? `<div class="row">Количество символов <span>до</span><span class="example-number">${widget.limitLength}</span>${propertyReset("length", "Количество символов")}</div>` : ""}
+    ${ui.added.has("pattern") ? `<div class="row">
+      <span class="pattern-picker">
+        <button class="pattern-trigger" type="button" data-text-styles aria-controls="pattern-menu" aria-expanded="false">Регулярное выражение</button>
+        <span class="text-style-menu position-menu pattern-menu" id="pattern-menu" role="group" aria-label="Вводимые символы" hidden>
+          <span class="text-style-options">
+            <span class="text-style-option" aria-disabled="true">Только буквы</span>
+            <span class="text-style-option" aria-disabled="true">Без спецсимволов</span>
+            <span class="text-style-option selected" aria-disabled="true" aria-current="true">Регулярное выражение</span>
+          </span>
+          <button class="text-style-close" type="button" data-close-text-styles aria-label="Закрыть меню"><img src="assets/close.svg" width="12" height="12" alt=""></button>
+        </span>
+      </span>${propertyReset("pattern", "Вводимые символы")}</div><div class="example-pattern example-hint">${escapeHtml(widget.limitPattern)}</div>` : ""}
   </div>` : ""}
   ${examplePropertyCard("description", "Описание", "Введите текст, который будет виден в окне подсказки")}
   ${examplePropertyCard("visibility", "Видимость", "Если формула вернет true, то поле появится")}
   ${examplePropertyCard("validation", "Валидация", "Проверка заполнения данных поможет исключить ошибки")}
   ${appearanceCard()}
-  ${availableFooterOptions().length ? `<div class="commands">
-    ${availableFooterOptions().slice(0, 4).map(option => option[0] === "limits" ? footerPopup(option, limitsMenuItems(), "Закрыть меню ограничений")
-      : option[0] === "appearance" && separateAppearance ? appearanceCommand(option) : activeFooterCommands.includes(option[0])
-      ? `<button class="command" type="button" data-add="${option[0]}" aria-label="${option[1]}">${footerIcon(option)}</button>`
-      : `<span class="command" title="${option[1]}" aria-hidden="true">${footerIcon(option)}</span>`).join("")}
-    <div class="add-menu-anchor">
+  ${footerCommands()}`;
+}
+
+function commandContent(option, labeled) {
+  return footerIcon(option) + (labeled ? `<span>${option[1]}</span>` : "");
+}
+
+function footerCommands() {
+  const options = availableFooterOptions();
+  if (!options.length) return "";
+  const overflow = options.length > 5;
+  const labeled = options.length <= 3;
+  const commands = (overflow ? options.slice(0, 4) : options).map(option => {
+    let [id, title] = option;
+    let chip = option;
+    if (id === "limits") {
+      const remaining = limitOptions.filter(([key]) => !ui.added.has(key));
+      if (remaining.length !== 1) return footerPopup(option, limitsMenuItems(), "Закрыть меню ограничений", labeled);
+      [id, title] = remaining[0];
+      chip = ["limits", title, option[2], option[3]];
+    }
+    if (id === "appearance" && separateAppearance) return appearanceCommand(option, labeled);
+    return `<button class="command" type="button" data-add="${id}" title="${title}" aria-label="${title}">${commandContent(chip, labeled)}</button>`;
+  }).join("");
+  return `<div class="commands${labeled ? " commands-labeled" : ""}">
+    ${commands}
+    ${overflow ? `<div class="add-menu-anchor">
       <button class="command" type="button" data-menu-toggle aria-label="Добавить" aria-expanded="${Boolean(ui.menu)}"${ui.menu ? ' aria-controls="add-menu"' : ""}>${footerIcon(["more", "", 18, 5])}</button>
       ${ui.menu ? footerMenu() : ""}
-    </div>
-  </div>` : ""}`;
+    </div>` : ""}
+  </div>`;
 }
 
 function radiusEditor(path, style) {
@@ -994,18 +1035,17 @@ function loadSystemView(view) {
   Object.assign(ui, { view: "main", state: "rest", menu: "" });
   ui.added.clear();
   if (view === "maximum") {
-    for (const [id] of footerOptions) ui.added.add(id);
+    for (const [id] of [...footerOptions, ...limitOptions]) {
+      if (id !== "limits") ui.added.add(id);
+    }
     if (separateAppearance) {
       ui.added.delete("appearance");
       for (const part of appearanceParts) ui.added.add(`appearance-${part}`);
     }
-    for (const id of ["required", "length", "pattern", "validation", "multiline"]) ui.added.add(id);
     Object.assign(widget, {
       name: "Организация.Название",
       defaultValue: "Микропредприятие",
       placeholder: "Любые важные детали",
-      limitLength: "10",
-      limitPattern: String.raw`/^(a-z0-9_\.-]+)@`,
     });
     Object.assign(widget.label, { text: "Примечание", placement: "left" });
   }
@@ -1047,13 +1087,8 @@ function resetAppearancePart(part, defaults) {
   }
 }
 
-function clearMaximumOnlyProperties() {
-  const maximum = document.querySelector('input[name="system-view"][value="maximum"]');
-  if (!maximum.checked) return;
-  maximum.checked = false;
-  for (const id of [...visualCommandIds, "limits", "length", "pattern"]) ui.added.delete(id);
-  widget.limitLength = "";
-  widget.limitPattern = "";
+function clearMaximumSelection() {
+  document.querySelector('input[name="system-view"][value="maximum"]').checked = false;
 }
 
 stage.addEventListener("input", updateModel);
@@ -1119,14 +1154,14 @@ stage.addEventListener("click", event => {
     applyTextPreset(style, style.textPreset || "main");
     showSettings(`[aria-controls="${picker.dataset.textStyleId}-style-menu"]`);
   } else if ("removeAppearance" in button.dataset) {
-    clearMaximumOnlyProperties();
+    clearMaximumSelection();
     const defaults = createWidget(widget.type);
     for (const part of appearanceParts) resetAppearancePart(part, defaults);
     ui.state = "rest";
     ui.added.delete("appearance");
     showSettings('.commands [data-add="appearance"]');
   } else if (button.dataset.removeAppearancePart) {
-    clearMaximumOnlyProperties();
+    clearMaximumSelection();
     const part = button.dataset.removeAppearancePart;
     ui.added.delete(`appearance-${part}`);
     resetAppearancePart(part, createWidget(widget.type));
@@ -1136,8 +1171,13 @@ stage.addEventListener("click", event => {
     ui.added.add(`appearance-${part}`);
     ui.menu = "";
     showSettings(`[data-remove-appearance-part="${part}"]`);
+  } else if (button.dataset.removeProperty) {
+    clearMaximumSelection();
+    const id = button.dataset.removeProperty;
+    ui.added.delete(id);
+    showSettings(limitOptions.some(([key]) => key === id) ? `.commands [data-add="${id}"], .limits-command` : `.commands [data-add="${id}"]`);
   } else if (button.dataset.removeText) {
-    clearMaximumOnlyProperties();
+    clearMaximumSelection();
     const id = button.dataset.removeText;
     ui.added.delete(id);
     setModel(metadataTextFields[id].path, "");
@@ -1164,7 +1204,7 @@ stage.addEventListener("click", event => {
     widget.name = widget.name ? "" : "Организация.Название";
     showSettings("[data-toggle-name]");
   } else if ("removeVariable" in button.dataset) {
-    clearMaximumOnlyProperties();
+    clearMaximumSelection();
     widget.name = "";
     ui.added.delete("variable");
     showSettings('.commands [data-add="variable"]');
@@ -1319,9 +1359,9 @@ stage.addEventListener("click", event => {
     } else {
       ui.added.add(option);
       ui.menu = "";
-      const model = metadataTextFields[option]?.path || { length: "limitLength", pattern: "limitPattern" }[option];
+      const model = metadataTextFields[option]?.path;
       const focusTarget = { appearance: "[data-remove-appearance]", variable: "[data-toggle-name]" }[option];
-      showSettings(model ? `[data-model="${model}"]` : focusTarget || "[data-menu-toggle]");
+      showSettings(model ? `[data-model="${model}"]` : focusTarget || `[data-remove-property="${option}"]`);
     }
   }
   updatePreview();
