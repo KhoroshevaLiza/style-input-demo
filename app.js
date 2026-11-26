@@ -110,7 +110,7 @@ const shadowParameters = [
 let shadowDraft = null;
 const footerOptions = [
   ["variable", "Переменная", 20, 9],
-  ["limits", "Ограничения", 18, 18],
+  ["limits", "Ограничения", 5, 18],
   ["appearance", "Оформление", 18, 20],
   ["visibility", "Видимость", 20, 19],
   ["multiline", "Многострочное", 20, 15],
