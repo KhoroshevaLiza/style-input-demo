@@ -73,7 +73,54 @@ function fieldStyle(state) {
 }
 
 const widgetTypes = {
-  text: { title: "Текст", placeholder: "Введите значение" },
+  text: {
+    title: "Текст", placeholder: "Введите значение", previewLabel: "Предпросмотр текстового поля",
+    maximum: { name: "Организация.Название", defaultValue: "Микропредприятие", placeholder: "Любые важные детали", label: "Примечание" },
+  },
+  number: {
+    title: "Число", placeholder: "Введите число", previewLabel: "Предпросмотр числового поля", inputMode: "decimal",
+    maximum: { name: "КоличествоПопыток", defaultValue: "10", placeholder: "Число до 5 знаков", label: "Количество попыток" },
+  },
+  date: {
+    dateFormat: "ДД.ММ.ГГ",
+    title: "Дата", placeholder: "", previewLabel: "Предпросмотр поля даты", inputMode: "numeric",
+    maximum: { name: "ДатаВизита", defaultValue: "12.12.24", placeholder: "Доступные дни", label: "Дата визита" },
+  },
+  datetime: {
+    title: "Дата и время", placeholder: "", previewLabel: "Предпросмотр поля даты и времени", inputMode: "numeric",
+    dateFormat: "ДД.ММ.ГГ ЧЧ:ММ",
+    maximum: { name: "ДатаВремяВизита", defaultValue: "12.12.24 12:35", placeholder: "Доступные дни", label: "Дата и время визита" },
+  },
+  time: {
+    title: "Время", placeholder: "", previewLabel: "Предпросмотр поля времени", inputMode: "numeric",
+    dateFormat: "ЧЧ:мм",
+    maximum: { name: "ВремяВстречи", defaultValue: "12:35", placeholder: "Удобное для вас время", label: "Время встречи" },
+  },
+  period: {
+    title: "Период", placeholder: "", previewLabel: "Предпросмотр поля периода", inputMode: "numeric",
+    dateFormat: "ДД.ММ.ГГ-ДД.ММ.ГГ",
+    maximum: { name: "ПериодНачислений", defaultValue: "12.12.24 - 12.12.25", label: "Период начислений" },
+  },
+  mask: {
+    title: "Маска", placeholder: "Введите значение", previewLabel: "Предпросмотр поля с маской",
+    maximum: { name: "СНИЛС.Номер", maskPattern: "ddd-ddd-ddd dd", defaultValue: "123-456-789 01", placeholder: "Номер", label: "СНИЛС" },
+  },
+  phone: {
+    title: "Телефон", placeholder: "Введите телефон", previewLabel: "Предпросмотр телефонного поля", inputMode: "tel",
+    maximum: { name: "НомерТелефона", defaultValue: "+7 (123) 456-78-90", placeholder: "Номер для связи", label: "Телефон" },
+  },
+  ip: {
+    title: "IP-адрес", placeholder: " . . .", previewLabel: "Предпросмотр поля IP-адреса", inputMode: "decimal",
+    maximum: { name: "IPАдрес", defaultValue: "255.255.5.7", label: "IP-адрес" },
+  },
+  fullName: {
+    title: "ФИО", placeholder: "", previewLabel: "Предпросмотр поля ФИО",
+    maximum: { name: "ФИО", nameParts: ["Чекшезеров", "Сергей", "Иванович"], label: "Пользователь" },
+  },
+  money: {
+    title: "Деньги", placeholder: "Введите число", previewLabel: "Предпросмотр денежного поля", inputMode: "decimal",
+    maximum: { name: "СуммаКорзины", defaultValue: "1000", placeholder: "Число до 5 знаков", label: "Сумма" },
+  },
 };
 
 function createWidget(type) {
@@ -81,6 +128,10 @@ function createWidget(type) {
     type,
     name: "",
     defaultValue: "",
+    ...(type === "fullName" ? { nameParts: ["", "", ""] } : {}),
+    ...(type === "phone" ? { phone: { mode: "mobile", flag: "left" } } : {}),
+    ...(type === "mask" ? { maskPattern: "" } : {}),
+    ...(widgetTypes[type].dateFormat ? { dateFormat: widgetTypes[type].dateFormat, dateValueFormat: widgetTypes[type].dateFormat } : {}),
     label: { text: "", placement: "left", gap: 8, ...typography("#8991a9") },
     placeholder: "",
     limitLength: "10",
@@ -95,12 +146,15 @@ function createWidget(type) {
       inner: { x: 0, y: 0, expanded: false, sides: [0, 0, 0, 0] },
       inset: { x: 0, y: 0, expanded: false, sides: [0, 0, 0, 0] },
     },
-    styles: Object.fromEntries(states.map(([state]) => [state, fieldStyle(state)])),
+    styles: Object.fromEntries(states.map(([state]) => [state, {
+      ...fieldStyle(state),
+      ...(widgetTypes[type].dateFormat && type !== "time" ? { calendar: { color: "#8991a9", colorAlpha: 100, size: 24, gap: 8 } } : {}),
+    }])),
   };
 }
 
 let widget = createWidget("text");
-const defaultWidget = JSON.stringify(widget);
+let defaultWidget = JSON.stringify(widget);
 const resetWidgetButton = document.querySelector("[data-reset-widget]");
 const ui = { view: "main", state: "rest", menu: "", added: new Set() };
 const defaultShadow = { color: "#000000", alpha: 14, x: 0, y: 0, blur: 8, spread: 0 };
@@ -114,18 +168,50 @@ const footerOptions = [
   ["appearance", "Оформление", 18, 20],
   ["visibility", "Видимость", 20, 19],
   ["multiline", "Многострочное", 20, 15],
+  ["timeFormat", "Формат"],
+  ["phoneFormat", "Формат"],
+  ["fullNameTwoRows", "В 2 строки", 20, 15],
   ["hint", "Подсказка", 20, 15],
   ["description", "Описание", 20, 20],
 ];
-const limitOptions = [
+const textLimitOptions = [
   ["required", "Заполнять обязательно"],
   ["length", "Количество символов"],
   ["pattern", "Вводимые символы"],
   ["validation", "Валидация"],
 ];
+const numberLimitOptions = [
+  ["required", "Заполнять обязательно"],
+  ["grouping", "Разделители триад"],
+  ["integer", "Целая часть"],
+  ["fraction", "Дробная часть"],
+  ["validation", "Валидация"],
+];
+const moneyLimitOptions = [
+  ["required", "Заполнять обязательно"],
+  ["positive", "Только положительные"],
+  ["integer", "Целая часть"],
+  ["noCoins", "Без копеек"],
+  ["validation", "Валидация"],
+];
+const numericLimitOptions = { number: numberLimitOptions, money: moneyLimitOptions };
+
+const dateLimitOptions = textLimitOptions.filter(([id]) => id === "required" || id === "validation");
+
+function widgetFooterOptions() {
+  return footerOptions.filter(([id]) =>
+    (id !== "multiline" || widget.type === "text") &&
+    (id !== "hint" || !hasCompactLabelMenu()) && (id !== "timeFormat" || widget.type === "time") &&
+    (id !== "phoneFormat" || widget.type === "phone") &&
+    (id !== "fullNameTwoRows" || widget.type === "fullName"));
+}
+function widgetLimitOptions() {
+  return widgetTypes[widget.type].dateFormat || widget.type === "mask" || widget.type === "phone" || widget.type === "ip" || widget.type === "fullName" ? dateLimitOptions : numericLimitOptions[widget.type] ?? textLimitOptions;
+}
 const appearanceParts = ["field", "size", "label"];
 let separateAppearance = document.querySelector('input[name="appearance-mode"]:checked')?.value === "separate";
 const metadataTextFields = {
+  mask: { path: "maskPattern", title: "Маска", label: "Шаблон маски", caption: "маска" },
   defaultValue: { path: "defaultValue", title: "Значение по умолчанию", label: "Значение по умолчанию", caption: "по умолчанию" },
   hint: { path: "placeholder", title: "Подсказка", label: "Подсказка", caption: "подсказка", remove: "Убрать подсказку" },
   label: { path: "label.text", title: "Название", label: "Текст метки", caption: "название" },
@@ -136,7 +222,21 @@ const preview = document.querySelector("#widget-preview");
 const previewFrame = document.querySelector(".widget-frame");
 const previewLabel = document.querySelector("#preview-label");
 const previewText = document.querySelector("#preview-text");
+let previewDateInput = null;
 const previewInputWrap = previewText.parentElement;
+const previewFullName = document.querySelector(".preview-full-name");
+const previewNameParts = [...previewFullName.querySelectorAll("input")];
+const previewPeriodEnd = document.querySelector("#preview-period-end");
+const previewPeriodEndWrap = previewPeriodEnd.parentElement;
+const previewPeriodDash = document.querySelector("#preview-period-dash");
+const previewCalendar = document.querySelector(".preview-calendar");
+const previewPhoneFlag = document.querySelector(".preview-phone-flag");
+
+function setPreviewValue(value) {
+  const [start, end = ""] = widget.type === "period" ? periodEndpoints(value) : [value];
+  previewText.value = start;
+  previewPeriodEnd.value = end;
+}
 
 function escapeHtml(value) {
   return String(value).replaceAll("&", "&amp;").replaceAll('"', "&quot;")
@@ -235,16 +335,19 @@ function inlineIcon(id, width, height, className = "inline-icon") {
 }
 
 function footerIcon([id, , width, height]) {
+  if (id === "fullNameTwoRows") return inlineIcon("footer-multiline", width, height);
+  if (id === "phoneFormat") return '<span class="time-format-icon" aria-hidden="true">&#xe636;</span>';
+  if (id === "timeFormat") return '<span class="time-format-icon" aria-hidden="true">&#xeb5b;</span>';
   if (id === "validation") return '<span class="validation-icon">!</span>';
   if (id === "required") return "∗";
   return inlineIcon("footer-" + id, width, height);
 }
 
 function availableFooterOptions() {
-  return footerOptions.filter(([id]) =>
+  return widgetFooterOptions().filter(([id]) =>
     (id !== "hint" || canShowHint()) && !ui.added.has(id) &&
     (id !== "appearance" || !appearanceParts.every(hasAppearancePart)) &&
-    (id !== "limits" || limitOptions.some(([key]) => !ui.added.has(key))));
+    (id !== "limits" || widgetLimitOptions().some(([key]) => !ui.added.has(key))));
 }
 
 function hasAppearancePart(part) {
@@ -277,8 +380,12 @@ function appearanceCommand(option, labeled) {
   return footerPopup(option, appearanceMenuItems(), "Закрыть меню оформления", labeled);
 }
 
+function remainingLimitOptions() {
+  return widgetLimitOptions().filter(([id]) => !ui.added.has(id));
+}
+
 function limitsMenuItems() {
-  return limitOptions.filter(([id]) => !ui.added.has(id))
+  return remainingLimitOptions()
     .map(([id, title]) => `<button class="add-menu-item" type="button" data-add="${id}">${title}</button>`).join("");
 }
 
@@ -287,10 +394,9 @@ function footerPopup(option, items, closeLabel, labeled) {
   const menuId = id === "limits" ? "footer-limits-menu" : "appearance-menu";
   return `<span class="footer-popup-anchor">
     <button class="command ${id}-command" type="button" data-text-styles title="${title}" aria-label="${title}" aria-controls="${menuId}" aria-expanded="false">${commandContent(option, labeled)}</button>
-    <span class="text-style-menu footer-popup" id="${menuId}" role="group" aria-labelledby="${menuId}-title" hidden>
-      <span class="add-menu-header" id="${menuId}-title">${title}</span>
+    <span class="text-style-menu footer-popup" id="${menuId}" role="group" aria-label="${title}" hidden>
       <span class="add-menu-items">${items}</span>
-      <button class="text-style-close" type="button" data-close-text-styles aria-label="${closeLabel}"><img src="assets/close.svg" width="12" height="12" alt=""></button>
+      <button class="text-style-close" type="button" data-close-text-styles aria-label="${closeLabel}">${inlineIcon("close", 12, 12)}</button>
     </span>
   </span>`;
 }
@@ -306,29 +412,36 @@ const labelPlacements = [
   ["none", "Без метки", 11],
 ];
 
+function hasCompactLabelMenu() {
+  return widget.type === "period" || widget.type === "ip" || widget.type === "fullName";
+}
+
 function labelPlacementPicker() {
   const selected = widget.label.placement;
-  const icon = (placement, height) =>
+  const compactMenu = hasCompactLabelMenu();
+  const placements = compactMenu ? labelPlacements.filter(([placement]) => placement !== "small-above") : labelPlacements;
+  const icon = (placement, height) => compactMenu && placement === "none"
+    ? `<span class="period-none-icon"><img src="assets/period-no-label.svg" width="14" height="14" alt=""></span>` :
     `<img src="assets/label-${placement === "none" ? "placement" : placement}.svg" width="20" height="${height}" alt="">`;
-  const options = labelPlacements.map(([placement, title, height]) =>
+  const options = placements.map(([placement, title, height]) =>
     `<button class="add-menu-item label-placement-option" type="button"
       data-label-placement="${placement}" aria-pressed="${placement === selected}">
       <span class="menu-icon">${icon(placement, height)}</span>
       <span>${title}</span>
     </button>`);
-  const [, title, height] = labelPlacements.find(([placement]) => placement === selected);
+  const [, title, height] = placements.find(([placement]) => placement === selected);
   return `<span class="label-placement">
     <button class="metadata-text-icon" type="button" data-text-styles data-placement="${selected}"
       aria-label="Расположение метки" title="${title}" aria-expanded="false"
       aria-controls="label-placement-menu">${icon(selected, height)}</button>
-    <span class="text-style-menu label-placement-menu" id="label-placement-menu" role="group" aria-labelledby="label-placement-title" hidden>
+    <span class="text-style-menu label-placement-menu${compactMenu ? " period-placement-menu" : ""}" id="label-placement-menu" role="group" aria-labelledby="label-placement-title" hidden>
       <span class="add-menu-header">
         <span id="label-placement-title">Отображение</span>
         <button class="add-menu-close" type="button" data-close-text-styles aria-label="Закрыть меню расположения метки"><img src="assets/close.svg" width="12" height="12" alt=""></button>
       </span>
-      <span class="text-style-options">${options.slice(0, 2).join("")}</span>
-      <span class="label-placement-heading">В области ввода</span>
-      <span class="text-style-options">${options.slice(2).join("")}</span>
+      <span class="text-style-options">${(compactMenu ? options : options.slice(0, 2)).join("")}</span>
+      ${compactMenu ? "" : `<span class="label-placement-heading">В области ввода</span>
+      <span class="text-style-options">${options.slice(2).join("")}</span>`}
     </span>
   </span>`;
 }
@@ -346,19 +459,18 @@ function metadataTextRow(id) {
 }
 
 function footerMenu() {
-  return `<div class="add-menu" id="add-menu" role="group" aria-labelledby="add-menu-title">
-    <div class="add-menu-header">
-      <span id="add-menu-title">Добавить</span>
-      <button class="add-menu-close" type="button" data-menu-close aria-label="Закрыть меню">${inlineIcon("close", 12, 12)}${inlineIcon("close-hover", 12, 12, "menu-close-hover")}</button>
-    </div>
+  return `<div class="add-menu" id="add-menu" role="group" aria-label="Добавить">
+    <button class="text-style-close" type="button" data-menu-close aria-label="Закрыть меню">${inlineIcon("close", 12, 12)}</button>
     <div class="add-menu-items">${availableFooterOptions().map(option => {
       const [id] = option;
       const shortcut = id === "appearance" ? appearanceShortcut() : null;
-      const displayed = shortcut?.option ?? option;
-      const hasSubmenu = id === "limits" || (id === "appearance" && separateAppearance && !shortcut);
+      const limits = id === "limits" ? remainingLimitOptions() : [];
+      const singleLimit = limits.length === 1 ? limits[0] : null;
+      const displayed = shortcut?.option ?? (singleLimit ? [id, singleLimit[1], option[2], option[3]] : option);
+      const hasSubmenu = limits.length > 1 || (id === "appearance" && separateAppearance && !shortcut);
       const submenuId = `${id}-submenu`;
       const action = shortcut ? `data-appearance-part="${shortcut.part}"`
-        : `data-add="${id}"`;
+        : `data-add="${singleLimit?.[0] ?? id}"`;
       const item = `<button class="add-menu-item" type="button" ${action}${hasSubmenu ? ` aria-controls="${id === "limits" ? "limits-menu" : submenuId}"` : ""}>
         <span class="menu-icon" aria-hidden="true">${footerIcon(displayed)}</span>
         <span>${displayed[1]}</span>${hasSubmenu ? inlineIcon("footer-chevron", 7, 12, "menu-chevron") : ""}
@@ -518,7 +630,7 @@ function examplePropertyCard(id, title, hint) {
   if (!ui.added.has(id)) return "";
   return `<div class="card example-property">
     <div class="example-property-title"><strong>${title}</strong>${propertyReset(id, title)}</div>
-    <div class="example-property-body">${hint}${id !== "description" ? '<span class="example-formula-icon" aria-hidden="true">&#xe746;</span>' : ""}</div>
+    <div class="example-property-body">${hint}${id !== "description" ? '<img class="example-formula-icon" src="assets/property-formula.svg" width="18" height="18" alt="">' : ""}</div>
   </div>`;
 }
 
@@ -539,10 +651,286 @@ function appearanceCard() {
   </div>`;
 }
 
+function numericLimitRows() {
+  const options = numericLimitOptions[widget.type] ?? [];
+  return options.filter(([id]) => id !== "required" && id !== "validation" && ui.added.has(id))
+    .map(([id, title]) => {
+      const sample = id === "integer" ? '<span class="example-number">5</span><span>знаков</span>'
+        : id === "fraction" ? '<span class="example-number">2</span><span>знака</span>' : "";
+      return `<div class="row">${title}${sample}${propertyReset(id, title)}</div>`;
+    }).join("");
+}
+
+const dateFormats = ["ДД.ММ.ГГГГ", "ДД.ММ.ГГ", "ДД.ММ", "ММ.ГГГГ", "ГГГГ"];
+
+const dateTimeFormats = dateFormats.slice(0, 3).map(format => format + " ЧЧ:ММ");
+
+const periodFormats = dateFormats.filter(format => format !== "ДД.ММ").map(format => format + "-" + format);
+const periodSeparator = " - ";
+
+function periodEndpoints(value) {
+  return value.split(/\s*-\s*/, 2);
+}
+
+function dateSettings() {
+  const hasTime = widget.type === "datetime";
+  const isPeriod = widget.type === "period";
+  const isTime = widget.type === "time";
+  const formats = isTime ? ["ЧЧ:мм", "ЧЧ:мм:сс"] : isPeriod ? periodFormats : hasTime ? dateTimeFormats : dateFormats;
+  const endpointFormat = widget.dateFormat.split("-")[0];
+  const endpoints = periodEndpoints(dateDefaultValue());
+  const formatRow = `<div class="row date-settings-row${isPeriod ? " period-format-row" : hasTime ? " date-time-row" : ""}"><span class="row-label">Формат</span>
+    <span class="pattern-picker">
+      <button class="link text-style-link date-format-trigger" type="button" data-text-styles aria-controls="date-format-menu" aria-expanded="false">${widget.dateFormat}</button>
+      <span class="text-style-menu position-menu date-format-menu${widget.type === "date" ? " date-only-format-menu" : ""}" id="date-format-menu" role="group" aria-label="Формат даты" hidden>
+        <span class="text-style-options">${formats.map(format => `<button class="text-style-option${format === widget.dateFormat ? " selected" : ""}" type="button" data-date-format="${format}" aria-pressed="${format === widget.dateFormat}">${format}</button>`).join("")}</span>
+        <button class="text-style-close" type="button" data-close-text-styles aria-label="Закрыть меню формата">${inlineIcon("close", 12, 12)}</button>
+      </span>
+    </span>${isTime ? propertyReset("timeFormat", "Формат") : ""}</div>`;
+  return `${!isTime || ui.added.has("timeFormat") ? formatRow : ""}
+    <div class="row date-settings-row${hasTime ? " date-time-row" : ""}"><label class="row-label" for="date-default">По умолчанию</label>
+      ${isPeriod ? [0, 1].map(index => `<input class="date-default" id="${index ? "date-default-end" : "date-default"}" type="text" data-period-endpoint="${index}" aria-label="${index ? "Конец" : "Начало"} периода по умолчанию" autocomplete="off" inputmode="numeric" placeholder="${datePlaceholder(endpointFormat)}" value="${escapeHtml(endpoints[index] ?? "")}">`).join('<span aria-hidden="true">-</span>') :
+        `<input class="date-default" id="date-default" type="text" data-model="defaultValue" autocomplete="off" inputmode="numeric" placeholder="${datePlaceholder()}" value="${escapeHtml(dateDefaultValue())}">`}
+      ${isTime ? "" : '<span class="date-calendar" aria-hidden="true">&#xe6c4;</span>'}
+    </div>`;
+}
+
+function setDateFormat(format) {
+  widget.dateFormat = format;
+  setPreviewValue(previewDateInput
+    ? formatDateValue(previewDateInput.value, previewDateInput.format, format)
+    : dateDefaultValue());
+}
+
+function dateDefaultValue() {
+  const { defaultValue, dateValueFormat, dateFormat } = widget;
+  return formatDateValue(defaultValue, dateValueFormat, dateFormat);
+}
+
+function dateFormatParts(format) {
+  return Array.from(format.matchAll(/([. :\-]?)([ДМГЧмс]+)/g), ([, separator, token]) => ({
+    token, separator: separator === "-" ? periodSeparator : separator, key: token === "сс" ? "seconds" : separator === ":" ? "minutes" : token[0],
+  }));
+}
+
+function formatDateValue(value, sourceFormat, targetFormat) {
+  if (!value || sourceFormat === targetFormat) return value;
+  if (sourceFormat.includes("-") && targetFormat.includes("-")) {
+    const source = sourceFormat.split("-");
+    const target = targetFormat.split("-");
+    return periodEndpoints(value).map((endpoint, index) => formatDateValue(endpoint, source[index], target[index])).join(periodSeparator);
+  }
+  const values = value.split(/[. :]/);
+  const parts = new Map(dateFormatParts(sourceFormat).map(({ key }, index) => [key, values[index]]));
+  const formatted = [];
+  for (const { token: part, separator, key } of dateFormatParts(targetFormat)) {
+    const digits = parts.get(key) ?? (key === "seconds" ? "35" : "");
+    if (!digits) break;
+    if (part === "ГГГГ" && digits.length === 2) formatted.push("20" + digits);
+    else formatted.push(part === "ГГ" && digits.length === 4 ? digits.slice(-2) : digits);
+    const complete = formatted.at(-1).length === part.length;
+    formatted[formatted.length - 1] = separator + formatted.at(-1);
+    if (!complete) break;
+  }
+  return formatted.join("");
+}
+
+function applyDateMask(input, format) {
+  const original = input.value;
+  const caret = input.selectionStart ?? original.length;
+  const digitsBeforeCaret = original.slice(0, caret).replace(/\D/g, "").length;
+  const digits = original.replace(/\D/g, "");
+  let offset = 0;
+  const groups = dateFormatParts(format).map(({ token, separator }) => {
+    const group = digits.slice(offset, offset + token.length);
+    offset += token.length;
+    return group ? separator + group : "";
+  });
+  const masked = groups.join("");
+  if (original === masked) return;
+
+  input.value = masked;
+  let position = 0;
+  let remaining = digitsBeforeCaret;
+  while (position < masked.length && remaining > 0) {
+    if (/\d/.test(masked[position])) remaining--;
+    position++;
+  }
+  input.setSelectionRange(position, position);
+}
+
+function deleteThroughDateSeparator(event) {
+  if (!widget.dateFormat && widget.type !== "phone") return;
+  const input = event.target;
+  const start = input.selectionStart;
+  if (start === null || start !== input.selectionEnd) return;
+  const before = input.value.slice(0, start).match(/[. :()\-]+$/)?.[0].length ?? 0;
+  const after = input.value.slice(start).match(/^[. :()\-]+/)?.[0].length ?? 0;
+  if (event.inputType === "deleteContentBackward" && before) {
+    input.setSelectionRange(Math.max(0, start - before - 1), start + after);
+  } else if (event.inputType === "deleteContentForward" && after) {
+    input.setSelectionRange(start - before, start + after + 1);
+  }
+}
+
+function datePlaceholder(format = widget.dateFormat) {
+  return dateFormatParts(format).map(({ token, separator }) => separator.replaceAll(" ", " ") + " ".repeat(token.length + 1)).join("");
+}
+
+const maskTokens = {
+  d: /[0-9]/,
+  L: /\p{L}/u,
+  l: /\p{L}/u,
+  x: /[0-9\p{L}]/u,
+};
+
+function formatMaskedText(value, pattern) {
+  if (!pattern || !value) return value;
+  const characters = Array.from(value);
+  let index = 0;
+  let text = "";
+  let literals = "";
+  for (const token of pattern) {
+    if (!Object.hasOwn(maskTokens, token)) {
+      if (characters[index] === token) index++;
+      literals += token;
+      continue;
+    }
+    const accepts = maskTokens[token];
+    while (index < characters.length && !accepts.test(characters[index])) index++;
+    if (index === characters.length) break;
+    let character = characters[index++];
+    if (token === "L") character = Array.from(character.toUpperCase())[0];
+    if (token === "l") character = Array.from(character.toLowerCase())[0];
+    text += literals + character;
+    literals = "";
+  }
+  return text;
+}
+
+function applyTextMask(input) {
+  const original = input.value;
+  const masked = formatMaskedText(original, widget.maskPattern);
+  if (original === masked) return;
+  const caret = formatMaskedText(original.slice(0, input.selectionStart ?? original.length), widget.maskPattern).length;
+  input.value = masked;
+  input.setSelectionRange(caret, caret);
+}
+
+function formatPhoneNumber(value) {
+  let digits = value.replace(/\D/g, "");
+  if (/^\s*\+7/.test(value) || (digits.length === 11 && /^[78]/.test(digits))) digits = digits.slice(1);
+  const number = formatMaskedText(digits, "(ddd) ddd-dd-dd");
+  return number ? "+7 " + number : "";
+}
+
+function applyPhoneMask(input) {
+  const original = input.value;
+  const masked = formatPhoneNumber(original);
+  if (masked === original) return;
+  const caret = input.selectionStart ?? original.length;
+  const position = caret === original.length ? masked.length : formatPhoneNumber(original.slice(0, caret)).length;
+  input.value = masked;
+  input.setSelectionRange(position, position);
+}
+
+const inputWidthContext = document.createElement("canvas").getContext("2d");
+
+function sampleInputWidth(sample, input, frame) {
+  const style = getComputedStyle(input);
+  const border = getComputedStyle(frame);
+  inputWidthContext.font = [style.fontStyle, style.fontWeight, style.fontSize, style.fontFamily].join(" ");
+  const letterSpacing = parseFloat(style.letterSpacing) || 0;
+  const extras = [style.paddingLeft, style.paddingRight, border.borderLeftWidth, border.borderRightWidth]
+    .reduce((width, part) => width + (parseFloat(part) || 0), 0);
+  const width = inputWidthContext.measureText(sample).width + letterSpacing * sample.length + extras;
+  return Math.ceil(width + 1) + "px";
+}
+
+function updateSampleInputWidths() {
+  if (widget.type !== "phone" && widget.type !== "ip") return;
+  const sample = widgetTypes[widget.type].maximum.defaultValue;
+  previewInputWrap.style.setProperty("--sample-input-width", sampleInputWidth(sample, previewText, previewInputWrap));
+  const ipDefault = content.querySelector(".ip-default");
+  if (ipDefault) ipDefault.style.width = sampleInputWidth(sample, ipDefault, ipDefault);
+}
+
+document.fonts.ready.then(updateSampleInputWidths);
+document.fonts.addEventListener("loadingdone", updateSampleInputWidths);
+
+function phonePicker(key, value, title, options) {
+  const id = "phone-" + key + "-menu";
+  return `<span class="pattern-picker">
+    <button class="link text-style-link phone-menu-trigger" type="button" data-text-styles aria-expanded="false" aria-controls="${id}" aria-label="${title}, ${value}">${value}</button>
+    <span class="text-style-menu position-menu phone-menu phone-menu-${key}" id="${id}" role="group" aria-label="${title}" hidden>
+      <span class="text-style-options">
+      ${options.map(([id, label]) => `<button type="button" class="text-style-option${widget.phone[key] === id ? " selected" : ""}" data-phone-setting="${key}" data-phone-option="${id}" aria-pressed="${widget.phone[key] === id}">${label}</button>`).join("")}
+      </span>
+      <button class="text-style-close" type="button" data-close-text-styles aria-label="Закрыть меню"><img src="assets/close.svg" width="12" height="12" alt=""></button>
+    </span>
+  </span>`;
+}
+
+function phoneSettings() {
+  const { mode, flag } = widget.phone;
+  const modes = [["mobile", "Мобильный"], ["free", "Произвольный"]];
+  const positions = [["hidden", "Скрыт"], ["left", "Слева"], ["right", "Справа"]];
+  return `<div class="row phone-settings-row"><span class="row-label phone-main-label">Телефон</span>
+    ${phonePicker("mode", modes.find(([id]) => id === mode)[1], "Тип номера", modes)}
+    ${propertyReset("phoneFormat", "Формат")}
+    </div>
+    <div class="row phone-settings-row"><span class="row-label phone-main-label">Код страны</span>
+      <span class="pattern-picker">
+        <button class="link text-style-link phone-menu-trigger" type="button" data-text-styles aria-expanded="false" aria-controls="phone-country-menu" aria-label="Код страны, +7">+7</button>
+        <span class="text-style-menu phone-menu-country" id="phone-country-menu" role="group" aria-label="Коды стран" hidden>
+          <span class="phone-country-image"><img src="assets/phone-country-menu.png" width="395" height="510" alt="Список стран и телефонных кодов"></span>
+          <button class="add-menu-close phone-country-close" type="button" data-close-text-styles aria-label="Закрыть меню"></button>
+        </span>
+      </span>
+      <span class="row-label">флаг</span>
+      ${phonePicker("flag", positions.find(([id]) => id === flag)[1].toLowerCase(), "Положение флага", positions)}
+    </div>`;
+}
+
+function ipDefaultField() {
+  return `<div class="row date-settings-row"><label class="row-label" for="ip-default">По умолчанию</label>
+    <input class="ip-default" id="ip-default" data-model="defaultValue" type="text" inputmode="decimal" autocomplete="off"
+      placeholder="${widgetTypes.ip.placeholder}" value="${escapeHtml(widget.defaultValue)}">
+  </div>`;
+}
+
+function formatIpInput(value) {
+  return value.replace(/[^0-9.]/g, "").replace(/^\.+/, "").replace(/\.{2,}/g, ".")
+    .split(".", 4).map(part => part.slice(0, 3)).join(".");
+}
+
+function applyIpMask(input) {
+  const original = input.value;
+  const formatted = formatIpInput(original);
+  if (formatted === original) return;
+  const caret = formatIpInput(original.slice(0, input.selectionStart ?? original.length)).length;
+  input.value = formatted;
+  input.setSelectionRange(caret, caret);
+}
+
+const fullNameLabels = ["Фамилия", "Имя", "Отчество"];
+
+function fullNameDefaults() {
+  return `<div class="full-name-defaults" role="group" aria-label="ФИО по умолчанию">
+    ${fullNameLabels.map((label, index) => textInput("nameParts." + index, label, label)).join("")}
+  </div>`;
+}
+
 function mainView() {
+  const numericRows = numericLimitRows();
   return `<div class="card metadata">
     ${metadataTextRow("label")}
-    ${metadataTextRow("defaultValue")}
+    ${widget.type === "mask" ? `<div class="mask-settings">
+      ${metadataTextRow("mask")}
+      <p class="mask-help">d — цифра,<br>L — прописная буква,<br>l — строчная буква,<br>x — буква или цифра.</p>
+    </div>` : ""}
+    ${widget.phone && ui.added.has("phoneFormat") ? phoneSettings() : ""}
+    ${widget.nameParts ? fullNameDefaults() : widget.dateFormat ? dateSettings() : widget.type === "ip" ? ipDefaultField() : metadataTextRow("defaultValue")}
     ${ui.added.has("variable") ? `<div class="metadata-text-row">
       <button class="name-row" type="button" data-toggle-name aria-pressed="${Boolean(widget.name)}">
         <span>${widget.name || "Переменная"}</span>
@@ -553,8 +941,10 @@ function mainView() {
     </div>` : ""}
     ${canShowHint() && ui.added.has("hint") ? metadataTextRow("hint") : ""}
   </div>
-  ${["required", "multiline", "length", "pattern"].some(id => ui.added.has(id)) ? `<div class="card added-options">
+  ${(numericRows || ["required", "multiline", "length", "pattern", "fullNameTwoRows"].some(id => ui.added.has(id))) ? `<div class="card added-options">
     ${ui.added.has("required") ? `<div class="row">Заполнять обязательно${propertyReset("required", "Заполнять обязательно")}</div>` : ""}
+    ${ui.added.has("fullNameTwoRows") ? `<div class="row">Выводить в 2 строки${propertyReset("fullNameTwoRows", "В 2 строки")}</div>` : ""}
+    ${numericRows}
     ${ui.added.has("multiline") ? `<div class="row">Многострочное <span>от</span><span class="example-number">1</span><span>до</span><span class="example-number example-hint">auto</span><span>строк</span>${propertyReset("multiline", "Многострочное")}</div>` : ""}
     ${ui.added.has("length") ? `<div class="row">Количество символов <span>до</span><span class="example-number">${widget.limitLength}</span>${propertyReset("length", "Количество символов")}</div>` : ""}
     ${ui.added.has("pattern") ? `<div class="row">
@@ -584,13 +974,13 @@ function commandContent(option, labeled) {
 function footerCommands() {
   const options = availableFooterOptions();
   if (!options.length) return "";
-  const overflow = options.length > 5;
+  const overflow = options.length > 5 || (hasCompactLabelMenu() && options.length === 5);
   const labeled = options.length <= 3;
   const commands = (overflow ? options.slice(0, 4) : options).map(option => {
     let [id, title] = option;
     let chip = option;
     if (id === "limits") {
-      const remaining = limitOptions.filter(([key]) => !ui.added.has(key));
+      const remaining = remainingLimitOptions();
       if (remaining.length !== 1) return footerPopup(option, limitsMenuItems(), "Закрыть меню ограничений", labeled);
       [id, title] = remaining[0];
       chip = ["limits", title, option[2], option[3]];
@@ -639,7 +1029,7 @@ function colorSettingSwatch(color, alpha) {
 
 function textColorButton(path) {
   const { color, colorAlpha = 100 } = modelAt(path);
-  const label = path === "label" ? "Цвет метки" : "Цвет текста";
+  const label = path.endsWith(".calendar") ? "Цвет календаря" : path === "label" ? "Цвет метки" : "Цвет текста";
   return `<button class="field-color-trigger" type="button" data-text-color="${path}"
     aria-haspopup="dialog" aria-label="${label}" title="${color.toUpperCase()}">${colorSettingSwatch(color, colorAlpha)}</button>`;
 }
@@ -704,6 +1094,16 @@ function borderEditor(path, style) {
   </div>`;
 }
 
+function calendarControls(path) {
+  return `<div class="card calendar-card"><div class="row">
+    <strong>Календарь</strong>
+    ${textColorButton(path)}
+    ${numberInput(path + ".size", "Размер иконки календаря", 8, 72)}
+    <span class="row-label calendar-gap-label">Отступ</span>
+    ${numberInput(path + ".gap", "Отступ до иконки календаря", 0, 60)}
+  </div></div>`;
+}
+
 function fieldView() {
   const path = "styles." + ui.state;
   const style = widget.styles[ui.state];
@@ -717,7 +1117,7 @@ function fieldView() {
   <div class="card field-effects">
     ${row("Фон", backgroundEditor(style))}
     ${shadowEditor(style.shadow)}
-  </div>${fontControls(path, true)}`;
+  </div>${fontControls(path, !widget.dateFormat)}${style.calendar ? calendarControls(path + ".calendar") : ""}`;
 }
 
 function labelView() {
@@ -764,7 +1164,8 @@ function spacingSides({ x, y, sides: values, expanded }) {
 
 function heightExtras() {
   const [top, , bottom] = spacingSides(widget.size.inner);
-  return top + bottom + labelRowHeight();
+  const nameRow = ui.added.has("fullNameTwoRows") ? defaultSize.height : 0;
+  return top + bottom + labelRowHeight() + nameRow;
 }
 
 function dimensionHints() {
@@ -889,6 +1290,22 @@ function applyTypography(element, style) {
   element.style.color = colorFill(style.color, style.colorAlpha ?? 100);
 }
 
+function applyPreviewGeometry(wrap, style) {
+  wrap.style.borderRadius = style.radiusMode === "corners"
+    ? style.cornerRadii.map(radius => radius + "px").join(" ")
+    : style.radius + "px";
+  wrap.style.borderStyle = style.borderLine;
+  wrap.style.borderColor = colorFill(style.borderColor, style.borderAlpha);
+  wrap.style.borderWidth = !style.borderColor ? "0px" : style.borderMode === "sides"
+    ? style.borders.map(width => width + "px").join(" ") : style.borderWidth + "px";
+  wrap.style.setProperty("--preview-input-border-width", wrap.style.borderBottomWidth);
+  wrap.style.background = colorFill(style.background, style.backgroundAlpha);
+  const shadow = ui.view === "field" && shadowDraft ? shadowDraft : style.shadow;
+  wrap.style.boxShadow = shadow
+    ? `${shadow.x}px ${shadow.y}px ${shadow.blur}px ${shadow.spread}px ${colorFill(shadow.color, shadow.alpha)}`
+    : "none";
+}
+
 function updatePreview() {
   const state = ui.view === "field" ? ui.state : "rest";
   const style = widget.styles[state];
@@ -917,38 +1334,77 @@ function updatePreview() {
   previewFrame.style.paddingInline = `${innerLeft}px ${innerRight}px`;
   preview.style.alignItems = size.vertical === "default" ? "center" : size.vertical;
   preview.style.gap = label.gap + "px";
-  previewInputWrap.style.borderRadius = style.radiusMode === "corners"
-    ? style.cornerRadii.map(radius => radius + "px").join(" ")
-    : style.radius + "px";
-  previewInputWrap.style.borderStyle = style.borderLine;
-  previewInputWrap.style.borderColor = colorFill(style.borderColor, style.borderAlpha);
-  previewInputWrap.style.borderWidth = !style.borderColor ? "0px" : style.borderMode === "sides"
-    ? style.borders.map(width => width + "px").join(" ") : style.borderWidth + "px";
-  previewInputWrap.style.setProperty("--preview-input-border-width", previewInputWrap.style.borderBottomWidth);
-  previewInputWrap.style.background = colorFill(style.background, style.backgroundAlpha);
-  const shadow = ui.view === "field" && shadowDraft ? shadowDraft : style.shadow;
-  previewInputWrap.style.boxShadow = shadow
-    ? `${shadow.x}px ${shadow.y}px ${shadow.blur}px ${shadow.spread}px ${colorFill(shadow.color, shadow.alpha)}`
-    : "none";
+  const isPeriod = widget.type === "period";
+  previewPeriodEndWrap.hidden = !isPeriod;
+  previewPeriodDash.hidden = !isPeriod;
+  previewFullName.hidden = !widget.nameParts;
+  previewInputWrap.hidden = Boolean(widget.nameParts);
+  previewFullName.classList.toggle("full-name-two-rows", ui.added.has("fullNameTwoRows"));
+  const wraps = widget.nameParts ? [previewFullName] : isPeriod ? [previewInputWrap, previewPeriodEndWrap] : [previewInputWrap];
+  for (const wrap of wraps) applyPreviewGeometry(wrap, style);
   preview.dataset.state = state;
-  preview.setAttribute("aria-label", widget.name || "Предпросмотр текстового поля");
+  const type = widgetTypes[widget.type];
+  preview.setAttribute("aria-label", widget.name || type.previewLabel);
   const floatingLabel = label.placement === "small-above";
   previewFrame.dataset.placement = label.placement;
+  const phone = widget.phone;
+  previewPhoneFlag.hidden = !phone || !ui.added.has("phoneFormat") || phone.flag === "hidden";
+  if (!previewPhoneFlag.hidden) {
+    if (phone.flag === "right") previewInputWrap.after(previewPhoneFlag);
+    else previewInputWrap.before(previewPhoneFlag);
+  }
+  previewCalendar.hidden = !style.calendar;
+  if (style.calendar) {
+    const { color, colorAlpha, size: iconSize, gap } = style.calendar;
+    previewCalendar.style.color = colorFill(color, colorAlpha);
+    previewCalendar.style.fontSize = (iconSize * 2 / 3) + "px";
+    previewCalendar.style.marginInlineStart = (gap - label.gap) + "px";
+  }
   const labelContainer = labelHeight ? previewFrame : previewText.closest(".widget-content");
   if (previewLabel.parentElement !== labelContainer) labelContainer.prepend(previewLabel);
   previewLabel.textContent = label.text;
   previewLabel.hidden = !label.text || label.placement === "none";
-  const defaultPlaceholder = widgetTypes[widget.type].placeholder;
+  const inputFormat = widget.dateFormat?.split("-")[0];
+  const defaultPlaceholder = inputFormat ? datePlaceholder(inputFormat) : type.placeholder;
+  previewInputWrap.classList.toggle("preview-date", Boolean(widget.dateFormat));
+  if (widget.dateFormat) {
+    const segments = dateFormatParts(inputFormat);
+    const digits = segments.reduce((length, { token }) => length + token.length, 0);
+    for (const wrap of wraps) wrap.style.setProperty("--date-format-width", (digits + (segments.length - 1) / 2) + "ch");
+  }
+  previewPeriodEndWrap.classList.toggle("preview-date", isPeriod);
+  if (type.inputMode) previewText.inputMode = type.inputMode;
+  else previewText.removeAttribute("inputmode");
   const placeholder = (canShowHint() && widget.placeholder) || defaultPlaceholder;
   const showNameAsPlaceholder = floatingLabel || label.placement === "none";
   previewText.placeholder = (showNameAsPlaceholder && label.text) || placeholder;
   previewText.required = required;
   previewText.style.setProperty("--preview-placeholder-color", colorFill(label.color, 60));
-  previewText.setAttribute("aria-label", label.text || widget.name || "Предпросмотр текстового поля");
+  previewText.setAttribute("aria-label", label.text || widget.name || type.previewLabel);
   const [, insetRight, , insetLeft] = spacingSides(size.inset);
   previewText.style.paddingInline = `${insetLeft}px ${insetRight}px`;
   previewText.style.textAlign = style.align;
   applyTypography(previewText, style);
+  previewInputWrap.classList.toggle("preview-sample-width", widget.type === "phone" || widget.type === "ip");
+  updateSampleInputWidths();
+  if (isPeriod) {
+    previewText.setAttribute("aria-label", "Начало периода");
+    previewPeriodEnd.placeholder = defaultPlaceholder;
+    previewPeriodEnd.style.setProperty("--preview-placeholder-color", colorFill(label.color, 60));
+    previewPeriodEnd.style.paddingInline = previewText.style.paddingInline;
+    previewPeriodEnd.style.textAlign = style.align;
+    applyTypography(previewPeriodEnd, style);
+    applyTypography(previewPeriodDash, style);
+  }
+  if (widget.nameParts) {
+    previewFullName.style.paddingInline = previewText.style.paddingInline;
+    previewNameParts[0].required = required;
+    for (const input of previewNameParts) {
+      input.style.setProperty("--preview-placeholder-color", colorFill(label.color, 60));
+      input.style.textAlign = style.align;
+      applyTypography(input, style);
+    }
+  }
   applyTypography(previewLabel, label);
   if (floatingLabel) previewLabel.style.fontSize = "12px";
   if (ui.view === "size") {
@@ -994,8 +1450,31 @@ function updateModel(event) {
     updatePreview();
     return;
   }
+  if ("periodEndpoint" in input.dataset) {
+    if (event.type !== "input") return;
+    applyDateMask(input, widget.dateFormat.split("-")[0]);
+    const [start, end] = [...content.querySelectorAll("[data-period-endpoint]")].map(field => field.value);
+    widget.defaultValue = end ? start + periodSeparator + end : start;
+    widget.dateValueFormat = widget.dateFormat;
+    previewDateInput = null;
+    setPreviewValue(widget.defaultValue);
+    updatePreview();
+    return;
+  }
   const path = input.dataset.model;
   if (!path || (event.type === "input" && input.tagName === "SELECT")) return;
+  if (path === "defaultValue" && widget.dateFormat) applyDateMask(input, widget.dateFormat);
+  if (path === "defaultValue" && widget.maskPattern) applyTextMask(input);
+  if (path === "defaultValue" && widget.type === "phone") applyPhoneMask(input);
+  if (path === "defaultValue" && widget.type === "ip") applyIpMask(input);
+  if (path === "maskPattern" && event.type === "input") {
+    widget.maskPattern = input.value;
+    widget.defaultValue = formatMaskedText(widget.defaultValue, widget.maskPattern);
+    content.querySelector('[data-model="defaultValue"]').value = widget.defaultValue;
+    previewText.value = formatMaskedText(previewText.value, widget.maskPattern);
+    updatePreview();
+    return;
+  }
   const previous = modelAt(path);
   const dimension = path === "size.width" ? "width" : path === "size.height" ? "height" : null;
   if (input.type === "number") {
@@ -1017,7 +1496,16 @@ function updateModel(event) {
     if (committed) input.value = number;
   } else {
     setModel(path, input.value);
-    if (path === "defaultValue" && event.type === "input") previewText.value = input.value;
+    if (path.startsWith("nameParts.") && event.type === "input") {
+      previewNameParts[Number(path.split(".")[1])].value = input.value;
+    }
+    if (path === "defaultValue") {
+      if (widget.dateFormat) widget.dateValueFormat = widget.dateFormat;
+      if (event.type === "input") {
+        previewDateInput = null;
+        setPreviewValue(input.value);
+      }
+    }
   }
   if (path.endsWith(".fontSize") && modelAt(path) !== previous) {
     refreshFontWarning(path.slice(0, -".fontSize".length));
@@ -1028,28 +1516,31 @@ function updateModel(event) {
 const stage = document.querySelector(".settings-stage");
 const systemViewInputs = document.querySelectorAll('input[name="system-view"]');
 
-function loadSystemView(view) {
+let systemView = "initial";
+
+function loadSystemView(view, type = widget.type) {
+  systemView = view;
   colorDialog.close();
   shadowDraft = null;
-  widget = createWidget(widget.type);
+  widget = createWidget(type);
+  defaultWidget = JSON.stringify(widget);
   Object.assign(ui, { view: "main", state: "rest", menu: "" });
   ui.added.clear();
   if (view === "maximum") {
-    for (const [id] of [...footerOptions, ...limitOptions]) {
+    for (const [id] of [...widgetFooterOptions(), ...widgetLimitOptions()]) {
       if (id !== "limits") ui.added.add(id);
     }
     if (separateAppearance) {
       ui.added.delete("appearance");
       for (const part of appearanceParts) ui.added.add(`appearance-${part}`);
     }
-    Object.assign(widget, {
-      name: "Организация.Название",
-      defaultValue: "Микропредприятие",
-      placeholder: "Любые важные детали",
-    });
-    Object.assign(widget.label, { text: "Примечание", placement: "left" });
+    const { label, ...values } = widgetTypes[type].maximum;
+    Object.assign(widget, values, values.nameParts ? { nameParts: [...values.nameParts] } : {});
+    Object.assign(widget.label, { text: label, placement: "left" });
   }
-  previewText.value = widget.defaultValue;
+  previewDateInput = null;
+  setPreviewValue(widget.defaultValue);
+  previewNameParts.forEach((input, index) => { input.value = widget.nameParts?.[index] ?? ""; });
   for (const input of systemViewInputs) input.checked = input.value === view;
   showSettings();
   updatePreview();
@@ -1058,6 +1549,12 @@ function loadSystemView(view) {
 for (const input of systemViewInputs) input.addEventListener("change", () => {
   if (input.checked) loadSystemView(input.value);
 });
+
+for (const input of document.querySelectorAll('input[name="system-widget-type"]')) {
+  input.addEventListener("change", () => {
+    if (input.checked) loadSystemView(systemView, input.value);
+  });
+}
 
 for (const input of document.querySelectorAll('input[name="appearance-mode"]')) {
   input.addEventListener("change", () => {
@@ -1091,6 +1588,23 @@ function clearMaximumSelection() {
   document.querySelector('input[name="system-view"][value="maximum"]').checked = false;
 }
 
+for (const input of [previewText, previewPeriodEnd]) {
+  input.addEventListener("beforeinput", deleteThroughDateSeparator);
+  input.addEventListener("input", () => {
+    if (widget.maskPattern && input === previewText) applyTextMask(input);
+    if (widget.type === "phone" && input === previewText) applyPhoneMask(input);
+    if (widget.type === "ip" && input === previewText) applyIpMask(input);
+    if (!widget.dateFormat) return;
+    applyDateMask(input, widget.dateFormat.split("-")[0]);
+    const value = widget.type === "period" && previewPeriodEnd.value
+      ? previewText.value + periodSeparator + previewPeriodEnd.value : previewText.value;
+    previewDateInput = { value, format: widget.dateFormat };
+  });
+}
+stage.addEventListener("beforeinput", event => {
+  if (event.target.id === "date-default" || event.target.id === "date-default-end" ||
+      (widget.type === "phone" && event.target.dataset.model === "defaultValue")) deleteThroughDateSeparator(event);
+});
 stage.addEventListener("input", updateModel);
 stage.addEventListener("change", updateModel);
 stage.addEventListener("pointerover", event => {
@@ -1175,7 +1689,9 @@ stage.addEventListener("click", event => {
     clearMaximumSelection();
     const id = button.dataset.removeProperty;
     ui.added.delete(id);
-    showSettings(limitOptions.some(([key]) => key === id) ? `.commands [data-add="${id}"], .limits-command` : `.commands [data-add="${id}"]`);
+    if (id === "timeFormat") setDateFormat(widgetTypes.time.dateFormat);
+    if (id === "phoneFormat") widget.phone = createWidget("phone").phone;
+    showSettings(widgetLimitOptions().some(([key]) => key === id) ? `.commands [data-add="${id}"], .limits-command` : `.commands [data-add="${id}"]`);
   } else if (button.dataset.removeText) {
     clearMaximumSelection();
     const id = button.dataset.removeText;
@@ -1185,6 +1701,13 @@ stage.addEventListener("click", event => {
   } else if (button.dataset.labelPlacement) {
     widget.label.placement = button.dataset.labelPlacement;
     showSettings(".metadata-text-icon");
+  } else if (button.dataset.phoneSetting) {
+    const { phoneSetting, phoneOption } = button.dataset;
+    widget.phone[phoneSetting] = phoneOption;
+    showSettings(`[aria-controls="phone-${phoneSetting}-menu"]`);
+  } else if (button.dataset.dateFormat) {
+    setDateFormat(button.dataset.dateFormat);
+    showSettings(".date-format-trigger");
   } else if (button.dataset.dimensionMode) {
     const menu = button.closest(".dimension-mode-menu");
     const { dimension } = menu.dataset;
@@ -1247,7 +1770,7 @@ stage.addEventListener("click", event => {
     const style = modelAt(path);
     const label = path === "label";
     colorDialog.open(button, {
-      title: label ? "Метка" : "Текст",
+      title: path.endsWith(".calendar") ? "Календарь" : label ? "Метка" : "Текст",
       palette: textColorPalettes[label ? "label" : "text"],
       value: { color: style.color, alpha: style.colorAlpha ?? 100 },
       onConfirm: ({ color, alpha }) => {
@@ -1399,7 +1922,7 @@ function positionAddMenu() {
   menu.style.removeProperty("--menu-shift");
   const viewportWidth = document.documentElement.clientWidth;
   const preferred = menu.getBoundingClientRect();
-  const shift = Math.min(Math.max(8 - preferred.left, 0), viewportWidth - preferred.right - 8);
+  const shift = Math.min(Math.max(8 - preferred.left, 0), viewportWidth - preferred.right - 22);
   menu.style.setProperty("--menu-shift", shift + "px");
   const bounds = menu.getBoundingClientRect();
   const space = 240;
@@ -1422,7 +1945,7 @@ function closeFooterMenu(restoreFocus) {
 }
 
 document.addEventListener("pointerdown", event => {
-  const editorTrigger = content.querySelector(':is(.font-picker-trigger,.alignment-trigger,.metadata-text-icon,.footer-popup-anchor > button)[aria-expanded="true"]');
+  const editorTrigger = content.querySelector(':is(.font-picker-trigger,.alignment-trigger,.metadata-text-icon,.date-format-trigger,.phone-menu-trigger,.footer-popup-anchor > button)[aria-expanded="true"]');
   if (editorTrigger && !editorTrigger.parentElement.contains(event.target)) setTextStyleMenu(editorTrigger, false);
   if (!ui.menu || event.target.closest(".add-menu-anchor")) return;
   ui.menu = "";
@@ -1440,7 +1963,7 @@ document.addEventListener("keydown", event => {
     return;
   }
   if (event.key === "Escape") {
-    const editorTrigger = content.querySelector(':is(.font-picker-trigger,.alignment-trigger,.metadata-text-icon,.footer-popup-anchor > button)[aria-expanded="true"]');
+    const editorTrigger = content.querySelector(':is(.font-picker-trigger,.alignment-trigger,.metadata-text-icon,.date-format-trigger,.phone-menu-trigger,.footer-popup-anchor > button)[aria-expanded="true"]');
     if (editorTrigger) {
       setTextStyleMenu(editorTrigger, false);
       editorTrigger.focus();
